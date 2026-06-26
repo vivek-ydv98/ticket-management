@@ -5,7 +5,13 @@ import { vi } from 'vitest';
 vi.mock('../lib/auth-client');
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
-  return { ...actual, useQuery: vi.fn() };
+  return {
+    ...actual,
+    useQuery: vi.fn(),
+    useQueryClient: vi.fn(() => ({
+      invalidateQueries: vi.fn(),
+    })),
+  };
 });
 vi.mock('axios');
 
@@ -52,12 +58,26 @@ const mockTickets = [
 
 function setupMocks() {
   vi.mocked(useSession).mockReturnValue(mockSession as any);
-  vi.mocked(useQuery).mockReturnValue({
-    data: mockTickets,
-    isLoading: false,
-    isError: false,
-    error: null,
-  } as any);
+  vi.mocked(useQuery).mockImplementation((config: any) => {
+    const key = config.queryKey?.[0];
+    if (key === 'assignees') {
+      return {
+        data: [
+          { id: '1', name: 'Agent Smith', email: 'Agent Smith' },
+          { id: '2', name: 'Agent 2', email: 'agent2@example.com' }
+        ],
+        isLoading: false,
+        isError: false,
+        error: null,
+      } as any;
+    }
+    return {
+      data: { tickets: mockTickets, total: mockTickets.length, totalPages: 1 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as any;
+  });
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -76,10 +96,10 @@ describe('TicketsPage', () => {
     expect(screen.getByText('Refund query')).toBeInTheDocument();
   });
 
-  it('supports selecting status and category filters', async () => {
+  it('supports selecting status, category, and priority filters', async () => {
     render(<TicketsPage />);
 
-    // We have multiple comboboxes: status, category, sort. Let's retrieve them by their text contents
+    // We have multiple comboboxes: status, category, priority. Let's retrieve them by their text contents
     const selects = screen.getAllByRole('combobox');
     expect(selects.length).toBe(3);
 
@@ -87,7 +107,7 @@ describe('TicketsPage', () => {
     fireEvent.change(selects[0], { target: { value: TicketStatus.OPEN } });
     expect(useQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        queryKey: expect.arrayContaining([TicketStatus.OPEN, "", "newest", ""]),
+        queryKey: ["tickets", TicketStatus.OPEN, "", "", "createdAt", "desc", "", 1],
       })
     );
 
@@ -95,20 +115,37 @@ describe('TicketsPage', () => {
     fireEvent.change(selects[1], { target: { value: TicketCategory.TECHNICAL } });
     expect(useQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        queryKey: expect.arrayContaining([TicketStatus.OPEN, TicketCategory.TECHNICAL, "newest", ""]),
+        queryKey: ["tickets", TicketStatus.OPEN, TicketCategory.TECHNICAL, "", "createdAt", "desc", "", 1],
+      })
+    );
+
+    // Filter by priority
+    fireEvent.change(selects[2], { target: { value: TicketPriority.HIGH } });
+    expect(useQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryKey: ["tickets", TicketStatus.OPEN, TicketCategory.TECHNICAL, TicketPriority.HIGH, "createdAt", "desc", "", 1],
       })
     );
   });
 
-  it('supports sorting by oldest first', async () => {
+  it('supports sorting by clicking headers', async () => {
     render(<TicketsPage />);
-    const selects = screen.getAllByRole('combobox');
 
-    // Change sort to oldest
-    fireEvent.change(selects[2], { target: { value: 'oldest' } });
+    // Click on the Ticket ID header to sort descending
+    const ticketIdHeader = screen.getByRole('button', { name: /ticket id/i });
+    fireEvent.click(ticketIdHeader);
+
     expect(useQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        queryKey: expect.arrayContaining(["", "", "oldest", ""]),
+        queryKey: ["tickets", "", "", "", "id", "desc", "", 1],
+      })
+    );
+
+    // Click again to sort ascending
+    fireEvent.click(ticketIdHeader);
+    expect(useQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryKey: ["tickets", "", "", "", "id", "asc", "", 1],
       })
     );
   });
@@ -116,9 +153,9 @@ describe('TicketsPage', () => {
   it('opens details drawer when a ticket row is clicked', async () => {
     render(<TicketsPage />);
 
-    // Click on the first ticket row
-    const ticketRowSubject = screen.getByText('Server is down');
-    fireEvent.click(ticketRowSubject);
+    // Click on the first ticket row (using the ID cell, as subject link stops propagation)
+    const ticketRowId = screen.getByText('#1');
+    fireEvent.click(ticketRowId);
 
     // The drawer should open and display the ticket's full description and status
     expect(screen.getAllByText('Server is down').length).toBeGreaterThan(1);
@@ -134,5 +171,46 @@ describe('TicketsPage', () => {
     await waitFor(() => {
       expect(screen.queryByText('Ticket #1')).not.toBeInTheDocument();
     });
+  });
+
+  it('supports pagination controls', async () => {
+    // Mock 12 tickets to force 2 pages
+    const manyTickets = Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      title: `Ticket #${i + 1}`,
+      description: `Description #${i + 1}`,
+      status: TicketStatus.OPEN,
+      category: TicketCategory.TECHNICAL,
+      priority: TicketPriority.HIGH,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      assignedTo: null,
+    }));
+
+    vi.mocked(useQuery).mockReturnValue({
+      data: { tickets: manyTickets.slice(0, 10), total: 12, totalPages: 2 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as any);
+
+    render(<TicketsPage />);
+
+    // Check that showing info is rendered correctly
+    expect(screen.getByText(/showing/i).closest('p')).toHaveTextContent("Showing 1 to 10 of 12 tickets");
+
+    // Verify Previous button is disabled on page 1
+    const prevButton = screen.getByRole('button', { name: /previous/i });
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    expect(prevButton).toBeDisabled();
+    expect(nextButton).not.toBeDisabled();
+
+    // Click Next button
+    fireEvent.click(nextButton);
+    expect(useQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queryKey: ["tickets", "", "", "", "createdAt", "desc", "", 2],
+      })
+    );
   });
 });

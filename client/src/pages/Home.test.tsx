@@ -62,7 +62,7 @@ const mockTickets = [
 
 function setupMocks() {
   vi.mocked(useQuery).mockReturnValue({
-    data: mockTickets,
+    data: { tickets: mockTickets, total: mockTickets.length },
     isLoading: false,
     isError: false,
     error: null,

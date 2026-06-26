@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useSession } from "../lib/auth-client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Layout from "../components/Layout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import {
   Search,
   SlidersHorizontal,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   Calendar,
   User,
   X,
@@ -17,6 +20,8 @@ import {
   AlertCircle
 } from "lucide-react";
 import { TicketStatus, TicketCategory, TicketPriority } from "@/core/src/index";
+import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 
 interface Ticket {
   id: number;
@@ -32,26 +37,48 @@ interface Ticket {
 
 export default function TicketsPage() {
   const { data: session, isPending } = useSession();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
+  const [priorityFilter, setPriorityFilter] = useState<string>("");
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "createdAt", desc: true }
+  ]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  const { data: assignees = [] } = useQuery<any[]>({
+    queryKey: ["assignees"],
+    queryFn: async () => {
+      const response = await axios.get("/api/users/assignees", {
+        withCredentials: true,
+      });
+      return response.data;
+    },
+  });
+
+  const sortBy = sorting[0]?.id || "createdAt";
+  const sortOrder = sorting[0] ? (sorting[0].desc ? "desc" : "asc") : "desc";
 
   const {
-    data: tickets = [],
+    data: ticketsData,
     isLoading,
-    isError,
     error,
-  } = useQuery<Ticket[]>({
-    queryKey: ["tickets", statusFilter, categoryFilter, sortBy, search],
+  } = useQuery<{ tickets: Ticket[]; total: number; totalPages: number }>({
+    queryKey: ["tickets", statusFilter, categoryFilter, priorityFilter, sortBy, sortOrder, search, page],
     queryFn: async () => {
       const response = await axios.get("/api/tickets", {
         params: {
           status: statusFilter || undefined,
           category: categoryFilter || undefined,
+          priority: priorityFilter || undefined,
           sortBy,
+          sortOrder,
           search: search || undefined,
+          page,
+          limit,
         },
         withCredentials: true,
       });
@@ -59,6 +86,10 @@ export default function TicketsPage() {
     },
     enabled: !!session,
   });
+
+  const tickets = ticketsData?.tickets ?? [];
+  const total = ticketsData?.total ?? 0;
+  const totalPages = ticketsData?.totalPages ?? 1;
 
   if (isPending) return null;
 
@@ -111,6 +142,120 @@ export default function TicketsPage() {
     }
   };
 
+  const columns = useMemo<ColumnDef<Ticket>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "Ticket ID",
+        cell: (info) => `#${info.getValue()}`,
+      },
+      {
+        accessorKey: "title",
+        header: "Subject / Description",
+        cell: (info) => {
+          const ticket = info.row.original;
+          return (
+            <div className="space-y-1">
+              <Link
+                to={`/tickets/${ticket.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline"
+              >
+                <h4 className="font-semibold text-foreground text-sm group-hover:text-brand transition-colors truncate">
+                  {ticket.title}
+                </h4>
+              </Link>
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                {ticket.description || "No description provided."}
+              </p>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "category",
+        header: "Category",
+        cell: (info) => {
+          const value = info.getValue() as TicketCategory | null;
+          return (
+            <span className="text-xs font-medium text-foreground/80 px-2 py-0.5 bg-muted/60 border border-border/20 rounded-md">
+              {getCategoryLabel(value)}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "priority",
+        header: "Priority",
+        cell: (info) => {
+          const value = info.getValue() as TicketPriority;
+          return (
+            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${getPriorityStyle(value)}`}>
+              {value}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: (info) => {
+          const value = info.getValue() as TicketStatus;
+          return (
+            <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getStatusStyle(value)}`}>
+              {value}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "assignedTo",
+        header: "Assigned To",
+        cell: (info) => {
+          const value = info.getValue() as string | null;
+          return (
+            <div className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 opacity-60" />
+              <span className="truncate max-w-[120px]">
+                {value || "Unassigned"}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Created",
+        cell: (info) => {
+          const value = info.getValue() as string | Date;
+          return (
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 opacity-60" />
+              <span>{new Date(value).toLocaleDateString()}</span>
+            </div>
+          );
+        },
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: tickets,
+    columns,
+    state: {
+      sorting,
+    },
+    onSortingChange: (updater) => {
+      setSorting(updater);
+      setPage(1);
+    },
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    manualPagination: true,
+    pageCount: totalPages,
+  });
+
   return (
     <Layout>
       <main className="max-w-7xl mx-auto p-8 space-y-8 animate-fade-in relative">
@@ -135,7 +280,8 @@ export default function TicketsPage() {
               type="text"
               placeholder="Search by title, description or agent..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              maxLength={200}
               className="pl-10 bg-background/50 border-border/40 focus-visible:ring-brand/30 focus-visible:border-brand"
             />
           </div>
@@ -147,7 +293,7 @@ export default function TicketsPage() {
               <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider hidden sm:inline">Status:</span>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
                 className="h-9 rounded-md border border-border/40 bg-background/50 px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand cursor-pointer"
               >
                 <option value="">All Statuses</option>
@@ -162,7 +308,7 @@ export default function TicketsPage() {
               <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider hidden sm:inline">Category:</span>
               <select
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
+                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
                 className="h-9 rounded-md border border-border/40 bg-background/50 px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand cursor-pointer"
               >
                 <option value="">All Categories</option>
@@ -172,16 +318,18 @@ export default function TicketsPage() {
               </select>
             </div>
 
-            {/* Sort Order */}
+            {/* Priority Filter */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider hidden sm:inline">Sort:</span>
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider hidden sm:inline">Priority:</span>
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "newest" | "oldest")}
+                value={priorityFilter}
+                onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
                 className="h-9 rounded-md border border-border/40 bg-background/50 px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand cursor-pointer"
               >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
+                <option value="">All Priorities</option>
+                <option value={TicketPriority.LOW}>Low</option>
+                <option value={TicketPriority.MEDIUM}>Medium</option>
+                <option value={TicketPriority.HIGH}>High</option>
               </select>
             </div>
           </div>
@@ -200,17 +348,45 @@ export default function TicketsPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border/20">
               <thead className="bg-muted/30">
-                <tr>
-                  {["Ticket ID", "Subject / Description", "Category", "Priority", "Status", "Assigned To", "Created"].map((col) => (
-                    <th
-                      key={col}
-                      scope="col"
-                      className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const isSortable = ["id", "title", "category", "priority", "status", "assignedTo", "createdAt"].includes(header.column.id);
+                      const sortDirection = header.column.getIsSorted();
+                      return (
+                        <th
+                          key={header.id}
+                          scope="col"
+                          className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider select-none"
+                        >
+                          {header.isPlaceholder ? null : isSortable ? (
+                            <button
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="flex items-center gap-1 hover:text-brand transition-colors font-bold uppercase cursor-pointer"
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                              {sortDirection === "asc" ? (
+                                <ChevronUp className="h-3.5 w-3.5 text-brand" />
+                              ) : sortDirection === "desc" ? (
+                                <ChevronDown className="h-3.5 w-3.5 text-brand" />
+                              ) : (
+                                <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100" />
+                              )}
+                            </button>
+                          ) : (
+                            flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
               </thead>
               <tbody className={`divide-y divide-border/10 ${isLoading ? "bg-card/10" : "bg-card/5"}`}>
                 {isLoading ? (
@@ -232,67 +408,25 @@ export default function TicketsPage() {
                   ))
                 ) : (
                   <>
-                    {tickets.map((ticket) => (
+                    {table.getRowModel().rows.map((row) => (
                       <tr
-                        key={ticket.id}
-                        onClick={() => setSelectedTicket(ticket)}
+                        key={row.id}
+                        onClick={() => setSelectedTicket(row.original)}
                         className="hover:bg-muted/30 transition-all duration-200 border-b border-border/10 last:border-b-0 cursor-pointer group"
                       >
-                        {/* ID */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-muted-foreground group-hover:text-brand transition-colors">
-                          #{ticket.id}
-                        </td>
-
-                        {/* Title & Preview */}
-                        <td className="px-6 py-4 max-w-md">
-                          <div className="space-y-1">
-                            <h4 className="font-semibold text-foreground text-sm group-hover:text-brand transition-colors truncate">
-                              {ticket.title}
-                            </h4>
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {ticket.description || "No description provided."}
-                            </p>
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="text-xs font-medium text-foreground/80 px-2 py-0.5 bg-muted/60 border border-border/20 rounded-md">
-                            {getCategoryLabel(ticket.category)}
-                          </span>
-                        </td>
-
-                        {/* Priority */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${getPriorityStyle(ticket.priority)}`}>
-                            {ticket.priority}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getStatusStyle(ticket.status)}`}>
-                            {ticket.status}
-                          </span>
-                        </td>
-
-                        {/* Assigned To */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                          <div className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 opacity-60" />
-                            <span className="truncate max-w-[120px]">
-                              {ticket.assignedTo || "Unassigned"}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Date */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 opacity-60" />
-                            <span>{new Date(ticket.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </td>
+                        {row.getVisibleCells().map((cell) => {
+                          let tdClassName = "px-6 py-4 whitespace-nowrap text-sm text-muted-foreground group-hover:text-foreground transition-colors";
+                          if (cell.column.id === "id") {
+                            tdClassName = "px-6 py-4 whitespace-nowrap text-sm font-bold text-muted-foreground group-hover:text-brand transition-colors";
+                          } else if (cell.column.id === "title") {
+                            tdClassName = "px-6 py-4 max-w-md";
+                          }
+                          return (
+                            <td key={cell.id} className={tdClassName}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
 
@@ -317,6 +451,62 @@ export default function TicketsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {tickets.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/10 px-6 pb-4 bg-card/5">
+              <p className="text-xs text-muted-foreground">
+                Showing <span className="font-semibold text-foreground">{Math.min((page - 1) * limit + 1, total)}</span> to{" "}
+                <span className="font-semibold text-foreground">{Math.min(page * limit, total)}</span> of{" "}
+                <span className="font-semibold text-foreground">{total}</span> tickets
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                  disabled={page === 1}
+                  className="h-8 text-xs font-semibold px-3 cursor-pointer disabled:opacity-50"
+                >
+                  Previous
+                </Button>
+                
+                {/* Page indicators */}
+                <div className="flex items-center gap-1.5">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    // Only show first, last, and pages around current page for clean aesthetics
+                    if (totalPages > 5 && p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
+                      if (p === 2 || p === totalPages - 1) {
+                        return <span key={p} className="text-muted-foreground text-xs px-1">...</span>;
+                      }
+                      return null;
+                    }
+                    return (
+                      <Button
+                        key={p}
+                        variant={p === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPage(p)}
+                        className={`h-8 w-8 text-xs font-semibold p-0 cursor-pointer ${p === page ? "bg-brand text-brand-foreground hover:bg-brand-hover" : ""}`}
+                      >
+                        {p}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={page === totalPages}
+                  className="h-8 text-xs font-semibold px-3 cursor-pointer disabled:opacity-50"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Backdrop for Slide-over Details Drawer */}
@@ -403,10 +593,36 @@ export default function TicketsPage() {
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">
                       Assigned Agent
                     </span>
-                    <div className="flex items-center gap-1 text-xs text-foreground font-semibold">
-                      <User className="h-3.5 w-3.5 text-brand" />
-                      <span>{selectedTicket.assignedTo || "Unassigned"}</span>
-                    </div>
+                    <select
+                      value={selectedTicket.assignedTo || ""}
+                      onChange={async (e) => {
+                        const val = e.target.value;
+                        const email = val === "" ? null : val;
+                        try {
+                          await axios.patch(
+                            `/api/tickets/${selectedTicket.id}`,
+                            { assignedTo: email },
+                            { withCredentials: true }
+                          );
+                          setSelectedTicket({
+                            ...selectedTicket,
+                            assignedTo: email,
+                          });
+                          queryClient.invalidateQueries({ queryKey: ["tickets"] });
+                        } catch (err) {
+                          console.error("Failed to assign ticket:", err);
+                          alert("Failed to assign ticket.");
+                        }
+                      }}
+                      className="h-8 rounded-md border border-border/40 bg-background/50 px-2 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand cursor-pointer w-full"
+                    >
+                      <option value="">Unassigned</option>
+                      {assignees.map((agent: any) => (
+                        <option key={agent.id} value={agent.email}>
+                          {agent.name || agent.email} ({agent.email})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

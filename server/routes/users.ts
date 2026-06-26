@@ -2,10 +2,38 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { auth } from "../lib/auth";
 import { requireAdmin } from "../lib/requireAdmin";
+import { requireAuth } from "../lib/requireAuth";
 import { createUserSchema, updateUserSchema, Role } from "../../core/src/index";
 import { ZodError } from "zod";
 
 const router = Router();
+
+// GET /api/users/assignees
+router.get("/assignees", requireAuth, async (_req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+    res.json(users);
+  } catch (error) {
+    console.error("Failed to fetch assignees:", error);
+    res.status(500).json({
+      error: "Failed to fetch assignees due to database error.",
+      message: "Failed to fetch assignees due to database error."
+    });
+  }
+});
 
 // GET /api/users
 router.get("/", requireAdmin, async (_req, res) => {

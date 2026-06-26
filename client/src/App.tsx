@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Users from "./pages/Users";
 import TicketsPage from "./pages/Tickets";
+import TicketDetailsPage from "./pages/TicketDetails";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
@@ -30,6 +31,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
       <Route path="/tickets" element={<ProtectedRoute><TicketsPage /></ProtectedRoute>} />
+      <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailsPage /></ProtectedRoute>} />
       <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
       <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

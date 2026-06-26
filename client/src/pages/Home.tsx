@@ -30,11 +30,11 @@ interface Ticket {
 export default function Home() {
   const { data: session, isPending } = useSession();
 
-  const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
+  const { data: ticketsData, isLoading } = useQuery<{ tickets: Ticket[]; total: number }>({
     queryKey: ["dashboard-tickets"],
     queryFn: async () => {
       const response = await axios.get("/api/tickets", {
-        params: { sortBy: "newest" },
+        params: { sortBy: "newest", limit: 1000 },
         withCredentials: true,
       });
       return response.data;
@@ -44,6 +44,7 @@ export default function Home() {
 
   if (isPending) return null;
 
+  const tickets = ticketsData?.tickets ?? [];
   const totalCount = tickets.length;
   const openCount = tickets.filter((t) => t.status === TicketStatus.OPEN).length;
   const resolvedCount = tickets.filter((t) => t.status === TicketStatus.RESOLVED).length;

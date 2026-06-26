@@ -133,6 +133,7 @@ export default function Login() {
                     type="email"
                     placeholder="name@example.com"
                     autoComplete="email"
+                    maxLength={254}
                     {...register("email")}
                   />
                   {fieldErrors.email && (
@@ -148,6 +149,7 @@ export default function Login() {
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                       autoComplete="current-password"
+                      maxLength={128}
                       className="pr-10"
                       {...register("password")}
                     />

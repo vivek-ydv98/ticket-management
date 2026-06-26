@@ -13,8 +13,10 @@ import ticketsRouter from "./routes/tickets";
 const app = express();
 const port = process.env.PORT ?? 3000;
 
-// Security middleware
-app.use(helmet());
+// Security middleware - only in production to avoid blocking Vite dev assets/scripts
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet());
+}
 
 // Rate limiting for API routes (general) - only in production
 if (process.env.NODE_ENV === 'production') {

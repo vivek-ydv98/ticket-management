@@ -55,18 +55,10 @@ cd server && bun run seed
 
 ## Testing
 
-### End-to-End Tests (Playwright)
-Use the `playwright-e2e-writer` agent to generate Playwright tests. Provide a prompt describing the feature or user flow you want to test (e.g., “Create a test that logs in a user and checks they are redirected to the dashboard”). The agent will output a TypeScript test file placed in `/e2e` following the project’s conventions.
-
-To run the tests:
-- Ensure the development servers are running (client on :5173, server on :3000) or use the `webServer` configuration in `playwright.config.ts`.
-- Execute with: `npx playwright test` or `bun playwright test`.
-- For UI mode: `bun test:e2e:ui`
-- For headed mode: `bun test:e2e:headed`
-- To run a specific test file: `bun playwright test tests/example.spec.ts`
-- For CI, set `NODE_ENV=test` to use the test database.
+We primarily use **Component Tests** (Vitest + React Testing Library) for frontend testing. Use **End-to-End Tests** (Playwright) only when necessary for testing user flows that span multiple pages or require real browser interactions.
 
 ### Component Tests (Vitest + React Testing Library)
+
 We use Vitest and React Testing Library for frontend component tests. The tests are located in `client/src` alongside the pages or components they test (e.g., `client/src/pages/Users.test.tsx`).
 
 #### Rules for Writing Component Tests
@@ -99,6 +91,51 @@ From the `client` directory:
   ```
 - To run a specific test file: `bun test src/path/to/Component.test.tsx`
 - Run tests with coverage: `bun run test --coverage`
+
+### End-to-End Tests (Playwright)
+
+E2E tests live in `/e2e` and are written in Playwright. Run them with the dev servers active.
+
+```bash
+npx playwright test                  # run all E2E tests
+bun test:e2e:ui                      # interactive UI mode
+bun test:e2e:headed                  # headed (visible browser)
+npx playwright test e2e/foo.spec.ts  # single file
+```
+
+Servers must be running (client :5173, server :3000), or use the `webServer` config in `playwright.config.ts`.
+
+---
+
+#### ⚖️ E2E vs Unit Test — Scoping Rule (MANDATORY)
+
+> **Write E2E tests ONLY for functionality that unit tests cannot cover.  
+> Never duplicate assertions that already exist in unit tests.**
+
+| Write an E2E test when... | Do NOT write an E2E test when... |
+|---|---|
+| Real authentication / session middleware enforces a redirect | Component renders a badge, label, or text |
+| A mutation (`PATCH`/`POST`) must actually reach the database | A form validates, disables a button, or shows an error |
+| UI must reflect server state **after a full page reload** | A dropdown shows the correct options |
+| Live cache-invalidation updates the UI without a reload | A reply is cleared from the textarea after submit (mocked) |
+| Cookie / browser storage behaviour is required | Role badges appear for AGENT/ADMIN/CUSTOMER replies |
+
+**Practical decision gate — ask yourself before adding a test:**
+
+1. Can this be faked with `vi.mock(axios)` and still give me confidence?  
+   → **Yes → write a unit test, not E2E.**
+2. Does this require a real HTTP round-trip that changes persistent state?  
+   → **Yes → write E2E.**
+3. Does this depend on browser APIs (cookies, redirects, `window.location`)?  
+   → **Yes → write E2E.**
+
+**Allowed E2E scenarios for TicketDetails / similar pages:**
+- Auth guard: unauthenticated users redirected to login (real session middleware)
+- Full page load returns real data from the DB
+- Status/priority PATCH persists — value survives a reload
+- POST reply saved — appears in thread after reload (real persistence + cache invalidation)
+- Reply count header matches actual DB count
+
 
 ## Key Conventions
 - Use Bun as the runtime and package manager (not npm/yarn)
@@ -145,43 +182,3 @@ This provider wrapper includes:
 - MemoryRouter (React Router)
 - Auth context (if needed)
 - Any other providers required by the component
-
-## Writing End-to-End Tests
-Use the `playwright-e2e-writer` agent to generate Playwright tests. Provide a prompt describing the feature or user flow you want to test (e.g., “Create a test that logs in a user and checks they are redirected to the dashboard”). The agent will output a TypeScript test file placed in `/e2e` following the project’s conventions.
-
-To run the tests:
-- Ensure the development servers are running (client on :5173, server on :3000) or use the `webServer` configuration in `playwright.config.ts`.
-- Execute with: `npx playwright test` or `bun playwright test`.
-- For CI, set `NODE_ENV=test` to use the test database.
-
-## Writing & Running Component Tests
-We use Vitest and React Testing Library for frontend component tests. The tests are located in `client/src` alongside the pages or components they test (e.g., `client/src/pages/Users.test.tsx`).
-
-### Rules for Writing Component Tests
-- **Do not mock `@tanstack/react-query` globally/blindly.** Mock only the hooks you need (like `useQuery`) using a mock factory to preserve the `QueryClientProvider` and other exports:
-  ```typescript
-  vi.mock('@tanstack/react-query', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@tanstack/react-query')>();
-    return {
-      ...actual,
-      useQuery: vi.fn(),
-    };
-  });
-  ```
-- **Use the custom `render` helper:** Import `render` from `../test/render` rather than `@testing-library/react` directly. This helper automatically wraps the component in `QueryClientProvider` and `MemoryRouter`.
-- **Mocking Auth:** Mock `../lib/auth-client` for session and authentication status:
-  ```typescript
-  vi.mock('../lib/auth-client');
-  import { useSession } from '../lib/auth-client';
-  ```
-
-### To Run Component Tests
-From the `client` directory:
-- Run tests in watch mode (interactive/re-runs on save):
-  ```bash
-  cd client && bun run test
-  ```
-- Run tests once (e.g., for CI/CD or one-off verification):
-  ```bash
-  cd client && bun run test:run
-  ```
