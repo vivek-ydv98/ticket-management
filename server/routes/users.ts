@@ -236,7 +236,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
       });
     }
 
-    // Soft delete the user and revoke all sessions in a transaction
+    // Soft delete the user, revoke all sessions, and unassign tickets in a transaction
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id },
@@ -248,6 +248,16 @@ router.delete("/:id", requireAdmin, async (req, res) => {
       // Delete all active sessions
       await tx.session.deleteMany({
         where: { userId: id },
+      });
+
+      // Unassign tickets assigned to this user (by email)
+      await tx.ticket.updateMany({
+        where: {
+          assignedTo: userToDelete.email.toLowerCase().trim(),
+        },
+        data: {
+          assignedTo: null,
+        },
       });
     });
 

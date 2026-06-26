@@ -136,7 +136,7 @@ export default function CreateUserForm({ isOpen, onClose, userToEdit }: CreateUs
             <Input
               id="name"
               placeholder="John Doe"
-              maxLength={100}
+              maxLength={50}
               {...register("name")}
               className="bg-muted/20 border-border/40 focus:border-brand/50 focus:ring-brand/20 transition-colors"
             />
@@ -153,7 +153,6 @@ export default function CreateUserForm({ isOpen, onClose, userToEdit }: CreateUs
               id="email"
               type="email"
               placeholder="john@example.com"
-              maxLength={254}
               {...register("email")}
               className="bg-muted/20 border-border/40 focus:border-brand/50 focus:ring-brand/20 transition-colors"
             />

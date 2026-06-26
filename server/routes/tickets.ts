@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { requireAuth } from "../lib/requireAuth";
 import { createTicketSchema, ticketQuerySchema, createReplySchema } from "../../core/src/index";
+import DOMPurify from 'dompurify';
 
 const router = Router();
 
@@ -298,11 +299,14 @@ router.post("/:id/replies", requireAuth, async (req, res) => {
       });
     }
 
+    const cleanHtml = DOMPurify.sanitize(body);
+
     const reply = await prisma.reply.create({
       data: {
         ticketId: id,
         userId: req.user!.id,
         body,
+        bodyhtml: cleanHtml,
         senderType,
       },
       include: {

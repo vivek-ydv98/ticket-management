@@ -197,8 +197,9 @@ describe("Ticket Routes - Assignment Validation", () => {
           id: 1,
           ticketId: 42,
           body: "Hello, this is a reply.",
+          bodyhtml: "<p>Hello, this is a reply.</p>",
           createdAt: new Date().toISOString(),
-          user: { id: "1", name: "Agent", email: "agent@example.com", role: "AGENT" },
+          user: { id: "1", name: "Agent", email: "agent@example.com", role:agent@example.com", role: "AGENT" },
         },
       ];
       vi.mocked(prisma.reply.findMany).mockResolvedValue(mockReplies as any);
@@ -232,6 +233,8 @@ describe("Ticket Routes - Assignment Validation", () => {
         id: 2,
         ticketId: 42,
         body: "I am working on this.",
+        bodyhtml: "<p>I am working on this.</p>",
+        senderType: "AGENT",
         createdAt: new Date().toISOString(),
         user: { id: "1", name: "Agent", email: "agent@example.com", role: "AGENT" },
       };
@@ -259,6 +262,7 @@ describe("Ticket Routes - Assignment Validation", () => {
         id: 2,
         ticketId: 42,
         body: "I am working on this.",
+        bodyhtml: "<p>I am working on this.</p>",
         senderType: "CUSTOMER",
         createdAt: new Date().toISOString(),
         user: { id: "1", name: "Agent", email: "agent@example.com", role: "AGENT" },

@@ -96,6 +96,7 @@ model Reply {
   userId     String
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   body       String
+  bodyhtml   String
   senderType SenderType @default(AGENT)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
