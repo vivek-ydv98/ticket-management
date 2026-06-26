@@ -1,0 +1,13 @@
+{
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.0.1",
+    "dotenv": "^17.4.2"
+  },
+  "scripts": {
+    "test:e2e": "bun playwright test",
+    "test:e2e:ui": "bun playwright test --ui",
+    "test:e2e:headed": "bun playwright test --headed",
+    "test": "bun playwright test"
+  }
+}

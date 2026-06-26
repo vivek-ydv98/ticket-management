@@ -1,0 +1,111 @@
+// Prisma schema for Helpdesk ticket management system
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  status      TicketStatus @default(OPEN)
+  category    TicketCategory?
+  priority    TicketPriority @default(MEDIUM)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  // Optional: assigned agent ID (if we have User model later)
+  assignedTo  String? // store user email or id for simplicity
+}
+
+// Authentication models from Better Auth
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  name          String?
+  image         String?
+  role          Role     @default(AGENT)
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  verifications Verification[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  token        String   @unique
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Account {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId         String
+  accountId          String
+  accessToken        String?
+  refreshToken       String?
+  idToken            String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope              String?
+  password           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id            String   @id @default(cuid())
+  identifier    String
+  value         String
+  expiresAt     DateTime
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([identifier, value])
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+enum TicketStatus {
+  OPEN
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  GENERAL
+  TECHNICAL
+  REFUND_REQUEST
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Role {
+  ADMIN
+  AGENT
+}

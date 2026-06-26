@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Local Environment files
+.env
+.env.local
+.env.*.local
+*.txt
+
+# Logs
+*.log
+logs/
+
+# Test reports & results
+playwright-report/
+test-results/
+coverage/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# AI Agents & Assistants
+.agents/
+.claude/

@@ -1,0 +1,231 @@
+import { simpleParser } from 'mailparser';
+import { prisma } from './db';
+import { TicketStatus, TicketCategory, TicketPriority } from '../generated/prisma/enums';
+
+/**
+ * Normalizes email content from various webhook formats to a standard email string
+ *
+ * @param rawContent - Raw content from webhook (could be string, object, etc.)
+ * @returns Normalized email content as a string
+ */
+export function normalizeEmailContent(rawContent: any): string {
+  // Handle string input (raw email)
+  if (typeof rawContent === 'string') {
+    return rawContent;
+  }
+
+  // Handle SendGrid Inbound Parse Webhook format
+  if (typeof rawContent === 'object' && rawContent !== null) {
+    // SendGrid sends form data with specific fields
+    if (rawContent.headers && (rawContent.text || rawContent.html)) {
+      // Reconstruct email from SendGrid components
+      const subject = rawContent.subject || 'No Subject';
+
+      // Handle from field - could be string, empty string, or undefined
+      let fromValue = '';
+      if (typeof rawContent.from === 'string') {
+        fromValue = rawContent.from.trim();
+      }
+      const toValue = typeof rawContent.to === 'string' && rawContent.to.trim() !== ''
+                    ? rawContent.to.trim()
+                    : 'unknown@example.com';
+      
+      const hasHtml = typeof rawContent.html === 'string' && rawContent.html.trim() !== '';
+      const textValue = hasHtml ? rawContent.html : (typeof rawContent.text === 'string' ? rawContent.text : '');
+
+      let fromLine = '';
+      if (fromValue !== '') {
+        fromLine = `From: ${fromValue}`;
+      }
+
+      const contentTypeLine = hasHtml ? 'Content-Type: text/html; charset=utf-8\n' : '';
+      return `${contentTypeLine}Subject: ${subject}\n${fromLine}\nTo: ${toValue}\n\n${textValue}`;
+    }
+
+    // Handle Mandrill-style inbound
+    if (rawContent.email && typeof rawContent.email === 'string') {
+      try {
+        const parsedEmail = JSON.parse(rawContent.email);
+        if (parsedEmail.headers) {
+          return parsedEmail.headers;
+        }
+      } catch (e) {
+        // Not JSON, treat as plain text
+      }
+    }
+
+    // Handle Mailgun-style webhook
+    if (rawContent['message-headers'] && typeof rawContent['message-headers'] === 'string') {
+      const headers = rawContent['message-headers'];
+      const body = rawContent['body-plain'] || '';
+      return `${headers}\n\n${body}`;
+    }
+
+    // Handle generic object - try to extract common fields
+    if (rawContent.subject || rawContent.from || rawContent.text || rawContent.body || rawContent.html) {
+      const subject = rawContent.subject || 'No Subject';
+      const from = rawContent.from; // Keep as is, could be undefined
+      const to = rawContent.to || 'unknown@example.com';
+      
+      const hasHtml = typeof rawContent.html === 'string' && rawContent.html.trim() !== '';
+      const body = hasHtml ? rawContent.html : (rawContent.text || rawContent.body || '');
+
+      let fromLine = '';
+      if (from) {
+        fromLine = `From: ${from}`;
+      }
+
+      const contentTypeLine = hasHtml ? 'Content-Type: text/html; charset=utf-8\n' : '';
+      return `${contentTypeLine}Subject: ${subject}\n${fromLine}\nTo: ${to}\n\n${body}`;
+    }
+  }
+
+  // Fallback: stringify the object
+  return JSON.stringify(rawContent, null, 2);
+}
+
+/**
+ * Parses an incoming email and creates a ticket from it
+ *
+ * @param emailContent - The raw email content as a string
+ * @returns The created ticket object
+ * @throws Error if sender is missing
+ */
+export async function createTicketFromEmail(emailContent: string) {
+  try {
+    // Parse the email using mailparser
+    const parsed = await simpleParser(emailContent);
+
+    // Extract email details
+    const subject = parsed.subject || 'No Subject';
+
+    // Extract sender address from parsed.from (handle multiple possible formats) or envelope
+    let fromAddress: string | null = null;
+
+    // Handle parsed.from being an array of address objects
+    if (Array.isArray(parsed.from) && parsed.from.length > 0) {
+      // Take the first address
+      fromAddress = parsed.from[0].address;
+    }
+    // Handle parsed.from being an object with a value property (array of address objects)
+    else if (parsed.from && typeof parsed.from === 'object' && 'value' in parsed.from &&
+             Array.isArray(parsed.from.value) && parsed.from.value.length > 0) {
+      // Take the first address from the value array
+      fromAddress = parsed.from.value[0].address;
+    }
+    // Handle parsed.from being a single address object
+    else if (parsed.from && typeof parsed.from === 'object' && 'address' in parsed.from) {
+      fromAddress = parsed.from.address;
+    }
+
+    // If not found, try the envelope (SMTP envelope sender)
+    if (!fromAddress && parsed.envelope) {
+      if (Array.isArray(parsed.envelope.from) && parsed.envelope.from.length > 0) {
+        fromAddress = parsed.envelope.from[0].address;
+      } else if (parsed.envelope.from && typeof parsed.envelope.from === 'object' && 'address' in parsed.envelope.from) {
+        fromAddress = parsed.envelope.from.address;
+      }
+    }
+
+    // Extract recipient address (keeping original method for now to avoid breaking changes)
+    const to = parsed.to?.text ?? '';
+    const date = parsed.date ?? new Date();
+
+    // Extract body - prefer HTML, fallback to plain text
+    let body = (parsed.html || parsed.text || '') as string;
+
+    // Clean up the body if needed (remove excessive whitespace, etc.)
+    // Only trim if body is a string
+    if (typeof body === 'string') {
+      body = body.trim();
+    }
+
+    // Validate that sender is present
+    if (!fromAddress) {
+      throw new Error('Sender email address is required');
+    }
+
+    // Create a descriptive title from the email subject
+    const title = `[Email] ${subject}`;
+
+    // Create description with email metadata
+    const description = `
+From: ${fromAddress}
+To: ${to}
+Date: ${date.toISOString()}
+
+Original Subject: ${subject}
+
+---
+${body}
+    `.trim();
+
+    // Determine category - optional, no default value (will be undefined if not determined)
+    let category: TicketCategory | undefined = undefined;
+    // TODO: Implement category detection based on email content/sender
+
+    // Determine priority - could analyze content for urgency indicators
+    const priority: TicketPriority = TicketPriority.MEDIUM;
+
+    // Use OPEN as the initial status
+    const status: TicketStatus = TicketStatus.OPEN;
+
+    // Create the ticket in the database
+    const ticket = await prisma.ticket.create({
+      data: {
+        title,
+        description,
+        status,
+        category,
+        priority,
+        // We could extract assignee from email rules, but for now leave unassigned
+        assignedTo: null,
+      }
+    });
+
+    return ticket;
+  } catch (error) {
+    console.error('Error creating ticket from email:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sends an email notification (using SendGrid)
+ * This would be used for sending replies or notifications
+ */
+export async function sendEmailNotification(to: string, subject: string, htmlContent: string) {
+  // Implementation would go here using @sendgrid/mail
+  // For now, we'll just log it since the focus is on receiving emails
+  console.log(`Would send email to: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Content: ${htmlContent}`);
+
+  // TODO: Implement actual SendGrid sending
+  /*
+  const sgMail = require('@sendgrid/mail');
+  sgMail.setApiKey(process.env.EMAIL_API_KEY);
+
+  const msg = {
+    to,
+    from: process.env.EMAIL_FROM_ADDRESS,
+    subject,
+    html: htmlContent,
+  };
+
+  await sgMail.send(msg);
+  */
+}
+
+/**
+ * Extracts potential assignee from email content or headers
+ * This could be enhanced to look for specific patterns or integrations
+ */
+export function extractAssigneeFromEmail(parsedEmail: any): string | null {
+  // For now, return null (no assignee)
+  // This could be enhanced to:
+  // 1. Look for specific email patterns
+  // 2. Check against known user emails
+  // 3. Parse CC/TO analysis, etc.
+  return null;
+}

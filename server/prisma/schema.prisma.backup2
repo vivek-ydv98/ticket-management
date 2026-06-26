@@ -1,0 +1,40 @@
+// Prisma schema for Helpdesk ticket management system
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  status      TicketStatus @default(OPEN)
+  category    TicketCategory @default(GENERAL)
+  priority    TicketPriority @default(MEDIUM)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  // Optional: assigned agent ID (if we have User model later)
+  assignedTo  String? // store user email or id for simplicity
+}
+
+enum TicketStatus {
+  OPEN
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  GENERAL
+  TECHNICAL
+  REFUND_REQUEST
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
