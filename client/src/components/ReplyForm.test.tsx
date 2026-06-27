@@ -4,6 +4,9 @@ import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../test/render';
 import userEvent from '@testing-library/user-event';
 import ReplyForm from './ReplyForm';
+import axios from 'axios';
+
+vi.mock('axios');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -187,6 +190,72 @@ describe('ReplyForm', () => {
       const btn = screen.getByRole('button', { name: /posting/i });
       expect(btn).toBeInTheDocument();
       expect(btn).toBeDisabled();
+    });
+  });
+
+  // ── AI Polish Button ─────────────────────────────────────────────────────────
+
+  describe('AI polish button', () => {
+    const getPolishBtn = () => screen.getByRole('button', { name: /polish reply/i });
+
+    it('renders the polish reply button', () => {
+      renderForm();
+      expect(getPolishBtn()).toBeInTheDocument();
+    });
+
+    it('polish button is disabled when textarea is empty', () => {
+      renderForm();
+      expect(getPolishBtn()).toBeDisabled();
+    });
+
+    it('polish button is enabled when textarea has content', async () => {
+      renderForm();
+      await userEvent.type(getTextarea(), 'needs polishing');
+      expect(getPolishBtn()).toBeEnabled();
+    });
+
+    it('calls axios.post on click and updates textarea with polished reply', async () => {
+      const mockedAxios = vi.mocked(axios);
+      mockedAxios.post.mockResolvedValueOnce({ data: { text: 'Polished: needs polishing' } });
+
+      renderForm(vi.fn(), false);
+      await userEvent.type(getTextarea(), 'needs polishing');
+      fireEvent.click(getPolishBtn());
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        '/api/tickets/polish',
+        { body: 'needs polishing', ticketId: undefined },
+        { withCredentials: true }
+      );
+
+      await waitFor(() => {
+        expect(getTextarea()).toHaveValue('Polished: needs polishing');
+      });
+    });
+
+    it('disables textarea and buttons and shows loading state during polish', async () => {
+      const mockedAxios = vi.mocked(axios);
+      // Return a promise that does not resolve immediately
+      let resolvePromise: any;
+      const promise = new Promise((resolve) => { resolvePromise = resolve; });
+      mockedAxios.post.mockReturnValueOnce(promise);
+
+      renderForm(vi.fn(), false);
+      await userEvent.type(getTextarea(), 'polishing');
+      fireEvent.click(getPolishBtn());
+
+      // Should show loading label
+      const loadingBtn = screen.getByRole('button', { name: /polishing/i });
+      expect(loadingBtn).toBeInTheDocument();
+      expect(loadingBtn).toBeDisabled();
+      expect(getSubmitBtn()).toBeDisabled();
+      expect(getTextarea()).toBeDisabled();
+
+      // Resolve the request
+      resolvePromise({ data: { text: 'Polished text' } });
+      await waitFor(() => {
+        expect(getTextarea()).toHaveValue('Polished text');
+      });
     });
   });
 

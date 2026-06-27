@@ -75,7 +75,7 @@ export default function ReplyThread({ replies, isLoading }: ReplyThreadProps) {
                 {isAdmin && (
                   <span
                     data-testid="badge-admin"
-                    className="px-2 py-0.5 text-[10px] font-bold rounded border bg-purple-500/10 text-purple-400 border-purple-500/20 uppercase tracking-wider"
+                    className="px-2 py-0.5 text-[10px] font-bold rounded border bg-rose-500/10 text-rose-400 border-rose-500/20 uppercase tracking-wider"
                   >
                     Admin
                   </span>

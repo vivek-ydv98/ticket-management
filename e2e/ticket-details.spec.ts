@@ -20,7 +20,7 @@ async function login(page: Page) {
   await page.getByLabel(/email/i).fill('admin@example.com');
   await page.getByLabel(/password/i).fill('password123');
   await page.getByRole('button', { name: /sign in/i }).click();
-  await page.waitForURL('/dashboard', { timeout: 10_000 });
+  await page.waitForURL('/', { timeout: 10_000 });
 }
 
 /** Navigate to the tickets list and return the ID of the first ticket. */
@@ -77,13 +77,12 @@ test.describe('Ticket Details — E2E', () => {
 
     // Pick a different status
     const newStatus = currentValue === 'OPEN' ? 'RESOLVED' : 'OPEN';
-    await statusSelect.selectOption(newStatus);
-
-    // Wait for the network request to complete
-    await page.waitForResponse(
+    const responsePromise = page.waitForResponse(
       (res) => res.url().includes(`/api/tickets/${id}`) && res.request().method() === 'PATCH',
       { timeout: 8_000 },
     );
+    await statusSelect.selectOption(newStatus);
+    await responsePromise;
 
     // Reload the page — the value should still be the one we set
     await page.reload();
@@ -93,11 +92,12 @@ test.describe('Ticket Details — E2E', () => {
     expect(reloadedValue).toBe(newStatus);
 
     // Restore original status to avoid polluting other tests
-    await page.locator('select').first().selectOption(currentValue);
-    await page.waitForResponse(
+    const restorePromise = page.waitForResponse(
       (res) => res.url().includes(`/api/tickets/${id}`) && res.request().method() === 'PATCH',
       { timeout: 8_000 },
     );
+    await page.locator('select').first().selectOption(currentValue);
+    await restorePromise;
   });
 
   // ── 4. Reply persists and appears after reload ─────────────────────────────
@@ -109,18 +109,17 @@ test.describe('Ticket Details — E2E', () => {
     await page.goto(`/tickets/${id}`);
 
     const uniqueBody = `E2E test reply – ${Date.now()}`;
-
-    // Type into the ReplyForm textarea and submit
     await page.getByPlaceholder('Type your message here...').fill(uniqueBody);
-    await page.getByRole('button', { name: /submit reply/i }).click();
 
     // Wait for the POST request to complete
-    await page.waitForResponse(
+    const responsePromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/api/tickets/${id}/replies`) &&
         res.request().method() === 'POST',
       { timeout: 8_000 },
     );
+    await page.getByRole('button', { name: /submit reply/i }).click();
+    await responsePromise;
 
     // The new reply should appear in the thread without a reload (cache invalidation)
     await expect(page.getByText(uniqueBody)).toBeVisible({ timeout: 8_000 });

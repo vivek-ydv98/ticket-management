@@ -16,7 +16,7 @@ vi.mock("../lib/db", () => ({
     ticket: {
       updateMany: vi.fn(),
     },
-    $transaction: vi.fn(async (callback) => {
+    $transaction: vi.fn(async (callback: any) => {
       // Mock transaction - just call the callback with the mocked prisma
       return callback(prisma);
     }),
@@ -75,7 +75,7 @@ describe("User Routes - Deletion Unassigns Tickets", () => {
         deletedAt: null,
       };
 
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(userToDelete);
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(userToDelete as any);
 
       // Make the delete request
       const response = await fetch(`${baseUrl}/${userId}`, {
@@ -85,7 +85,7 @@ describe("User Routes - Deletion Unassigns Tickets", () => {
 
       // Verify response
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data.message).toBe("User deleted successfully.");
 
       // Verify that ticket unassignment was called
@@ -111,7 +111,7 @@ describe("User Routes - Deletion Unassigns Tickets", () => {
         deletedAt: null,
       };
 
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(userToDelete);
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(userToDelete as any);
       // Make updateMany return 0 affected rows (no tickets to update)
       vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 0 });
 
@@ -123,7 +123,7 @@ describe("User Routes - Deletion Unassigns Tickets", () => {
 
       // Verify response
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data.message).toBe("User deleted successfully.");
 
       // Verify that ticket unassignment was still called

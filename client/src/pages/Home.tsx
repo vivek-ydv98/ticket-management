@@ -87,9 +87,9 @@ export default function Home() {
       icon: Smile,
       trend: "Archived",
       positive: true,
-      color: "text-purple-500",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20"
+      color: "text-zinc-400",
+      bg: "bg-zinc-500/10",
+      border: "border-zinc-500/20"
     },
   ];
 

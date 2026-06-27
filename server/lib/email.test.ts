@@ -52,13 +52,11 @@ describe('Email Service', () => {
 
   describe('createTicketFromEmail', () => {
     it('should create a ticket from valid email content', async () => {
-      const emailContent = `
-        Subject: Test Issue
-        From: user@example.com
-        To: support@example.com
+      const emailContent = `Subject: Test Issue
+From: user@example.com
+To: support@example.com
 
-        Hello, I need help with something.
-      `;
+Hello, I need help with something.`;
 
       const result = await createTicketFromEmail(emailContent);
 
@@ -73,12 +71,10 @@ describe('Email Service', () => {
     });
 
     it('should throw error when sender is missing', async () => {
-      const emailContent = `
-        Subject: Test Issue
-        To: support@example.com
+      const emailContent = `Subject: Test Issue
+To: support@example.com
 
-        Hello, I need help with something.
-      `;
+Hello, I need help with something.`;
 
       await expect(createTicketFromEmail(emailContent))
         .rejects

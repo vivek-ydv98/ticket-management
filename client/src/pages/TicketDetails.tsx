@@ -233,7 +233,7 @@ export default function TicketDetailsPage() {
                   <ReplyThread replies={replies} isLoading={isLoadingReplies} />
 
                   {/* Reply Form */}
-                  <ReplyForm onSubmit={handleSubmitReply} isSubmitting={isSubmittingReply} />
+                  <ReplyForm onSubmit={handleSubmitReply} isSubmitting={isSubmittingReply} ticketId={ticket?.id} />
                 </div>
               </div>
 
@@ -246,9 +246,10 @@ export default function TicketDetailsPage() {
 
                   {/* Status */}
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Status</span>
+                    <label htmlFor="ticket-status-select" className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Status</label>
                     <div className="col-span-2">
                       <select
+                        id="ticket-status-select"
                         value={ticket.status}
                         onChange={async (e) => {
                           await handleUpdate({ status: e.target.value as TicketStatus });
@@ -267,9 +268,10 @@ export default function TicketDetailsPage() {
 
                   {/* Priority */}
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Priority</span>
+                    <label htmlFor="ticket-priority-select" className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Priority</label>
                     <div className="col-span-2">
                       <select
+                        id="ticket-priority-select"
                         value={ticket.priority}
                         onChange={async (e) => {
                           await handleUpdate({ priority: e.target.value as TicketPriority });
@@ -288,9 +290,10 @@ export default function TicketDetailsPage() {
 
                   {/* Category */}
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Category</span>
+                    <label htmlFor="ticket-category-select" className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Category</label>
                     <div className="col-span-2">
                       <select
+                        id="ticket-category-select"
                         value={ticket.category || ""}
                         onChange={async (e) => {
                           await handleUpdate({ category: (e.target.value || null) as TicketCategory | null });
@@ -310,9 +313,10 @@ export default function TicketDetailsPage() {
 
                   {/* Assigned Agent */}
                   <div className="grid grid-cols-3 items-center gap-4">
-                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Agent</span>
+                    <label htmlFor="ticket-agent-select" className="text-xs text-muted-foreground font-semibold uppercase tracking-wider col-span-1">Agent</label>
                     <div className="col-span-2">
                       <select
+                        id="ticket-agent-select"
                         value={ticket.assignedTo || ""}
                         onChange={async (e) => {
                           const val = e.target.value;

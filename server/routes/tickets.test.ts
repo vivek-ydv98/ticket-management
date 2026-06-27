@@ -79,7 +79,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.assignedTo).toBe("agent@example.com");
   });
 
@@ -98,7 +98,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.error).toBe("Assigned agent must be a valid, active user.");
   });
 
@@ -121,7 +121,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.error).toBe("Assigned agent must be a valid, active user.");
   });
 
@@ -146,7 +146,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.assignedTo).toBe("agent@example.com");
   });
 
@@ -162,7 +162,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.error).toBe("Assigned agent must be a valid, active user.");
   });
 
@@ -181,7 +181,7 @@ describe("Ticket Routes - Assignment Validation", () => {
     });
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.assignedTo).toBeNull();
   });
 
@@ -199,14 +199,14 @@ describe("Ticket Routes - Assignment Validation", () => {
           body: "Hello, this is a reply.",
           bodyhtml: "<p>Hello, this is a reply.</p>",
           createdAt: new Date().toISOString(),
-          user: { id: "1", name: "Agent", email: "agent@example.com", role:agent@example.com", role: "AGENT" },
+          user: { id: "1", name: "Agent", email: "agent@example.com", role: "AGENT" },
         },
       ];
       vi.mocked(prisma.reply.findMany).mockResolvedValue(mockReplies as any);
 
       const res = await fetch(`${baseUrl}/42/replies`);
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data).toHaveLength(1);
       expect(data[0].body).toBe("Hello, this is a reply.");
       expect(data[0].user.name).toBe("Agent");
@@ -217,7 +217,7 @@ describe("Ticket Routes - Assignment Validation", () => {
 
       const res = await fetch(`${baseUrl}/999/replies`);
       expect(res.status).toBe(404);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.error).toBe("Ticket not found.");
     });
   });
@@ -247,7 +247,7 @@ describe("Ticket Routes - Assignment Validation", () => {
       });
 
       expect(res.status).toBe(201);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.body).toBe("I am working on this.");
       expect(data.user.role).toBe("AGENT");
     });
@@ -276,7 +276,7 @@ describe("Ticket Routes - Assignment Validation", () => {
       });
 
       expect(res.status).toBe(201);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.body).toBe("I am working on this.");
       expect(data.senderType).toBe("CUSTOMER");
       expect(vi.mocked(prisma.reply.create)).toHaveBeenCalledWith(expect.objectContaining({
@@ -294,7 +294,7 @@ describe("Ticket Routes - Assignment Validation", () => {
       });
 
       expect(res.status).toBe(400);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.error).toBe("Reply message cannot be empty.");
     });
 
@@ -308,8 +308,84 @@ describe("Ticket Routes - Assignment Validation", () => {
       });
 
       expect(res.status).toBe(404);
-      const data = await res.json();
+      const data = await res.json() as any;
       expect(data.error).toBe("Ticket not found.");
+    });
+  });
+
+  describe("POST /api/tickets/polish", () => {
+    const originalApiKey = process.env.OPENAI_API_KEY;
+
+    beforeAll(() => {
+      process.env.OPENAI_API_KEY = "mock";
+    });
+
+    afterAll(() => {
+      process.env.OPENAI_API_KEY = originalApiKey;
+    });
+
+    it("returns 400 for empty or invalid body", async () => {
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "" }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = await res.json() as any;
+      expect(data.error).toBe("Reply body is required and must be a string.");
+    });
+
+    it("polishes a reply using mock fallback when API key is missing", async () => {
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "i will check the logs" }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.text).toContain("Thank you for contacting support.");
+      expect(data.text).toContain("I will check the logs");
+      expect(data.text).toContain("Best regards,");
+    });
+
+    it("polishes a reply with ticket context from DB if ticketId is provided", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 42,
+        title: "Database issue",
+        description: "Postgres goes down",
+      } as any);
+
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "will restart db", ticketId: 42 }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.text.toLowerCase()).toContain("will restart db");
+      expect(prisma.ticket.findUnique).toHaveBeenCalledWith({ where: { id: 42 } });
+    });
+
+    it("polishes a reply using mock fallback when OpenAI API throws an error", async () => {
+      process.env.OPENAI_API_KEY = "invalid-key-to-force-error";
+      try {
+        const res = await fetch(`${baseUrl}/polish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: "please help me fix this soon" }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = await res.json() as any;
+        expect(data.text).toContain("Thank you for contacting support.");
+        expect(data.text).toContain("Please help me fix this soon");
+        expect(data.text).toContain("Best regards,");
+      } finally {
+        process.env.OPENAI_API_KEY = "mock";
+      }
     });
   });
 });

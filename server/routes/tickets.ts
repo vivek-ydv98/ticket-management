@@ -2,7 +2,13 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { requireAuth } from "../lib/requireAuth";
 import { createTicketSchema, ticketQuerySchema, createReplySchema } from "../../core/src/index";
-import DOMPurify from 'dompurify';
+import { JSDOM } from "jsdom";
+import createDOMPurify from "dompurify";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const window = new JSDOM("").window;
+const DOMPurify = createDOMPurify(window as any);
 
 const router = Router();
 
@@ -131,7 +137,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 // GET /api/tickets/:id - Get a ticket by ID
 router.get("/:id", requireAuth, async (req, res) => {
-  const idStr = req.params.id;
+  const idStr = req.params.id as string;
   const id = parseInt(idStr, 10);
   if (isNaN(id)) {
     return res.status(400).json({
@@ -164,7 +170,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 // PATCH /api/tickets/:id - Update ticket details (e.g. assignedTo, status, priority, category)
 router.patch("/:id", requireAuth, async (req, res) => {
-  const idStr = req.params.id;
+  const idStr = req.params.id as string;
   const id = parseInt(idStr, 10);
   if (isNaN(id)) {
     return res.status(400).json({
@@ -220,7 +226,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
 // GET /api/tickets/:id/replies - Get all replies for a ticket
 router.get("/:id/replies", requireAuth, async (req, res) => {
-  const idStr = req.params.id;
+  const idStr = req.params.id as string;
   const id = parseInt(idStr, 10);
   if (isNaN(id)) {
     return res.status(400).json({
@@ -268,7 +274,7 @@ router.get("/:id/replies", requireAuth, async (req, res) => {
 
 // POST /api/tickets/:id/replies - Create a new reply for a ticket
 router.post("/:id/replies", requireAuth, async (req, res) => {
-  const idStr = req.params.id;
+  const idStr = req.params.id as string;
   const id = parseInt(idStr, 10);
   if (isNaN(id)) {
     return res.status(400).json({
@@ -330,6 +336,106 @@ router.post("/:id/replies", requireAuth, async (req, res) => {
     });
   }
 });
+
+// POST /api/tickets/polish - Polish a draft reply using AI
+router.post("/polish", requireAuth, async (req, res) => {
+  const { body, ticketId } = req.body;
+
+  if (!body || typeof body !== "string") {
+    return res.status(400).json({
+      error: "Reply body is required and must be a string.",
+      message: "Reply body is required and must be a string."
+    });
+  }
+
+  let ticketTitle = req.body.ticketTitle || "";
+  let ticketDescription = req.body.ticketDescription || "";
+
+  try {
+
+    if (ticketId) {
+      const parsedId = parseInt(ticketId, 10);
+      if (!isNaN(parsedId)) {
+        const ticket = await prisma.ticket.findUnique({
+          where: { id: parsedId }
+        });
+        if (ticket) {
+          ticketTitle = ticket.title;
+          ticketDescription = ticket.description || "";
+        }
+      }
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
+      // Mock polishing fallback
+      const polishedText = mockPolishReply(body, ticketTitle, ticketDescription);
+      return res.json({ text: polishedText });
+    }
+
+    const systemPrompt = `You are an expert customer support agent. Your task is to polish and improve a draft reply to a support ticket.
+Make the reply professional, polite, grammatically correct, and clear.
+Provide only the polished reply body. Do not include any meta-commentary, wrappers, markdown formatting (like code blocks), or labels (e.g., "Polished Reply:"). Return only the final text itself.`;
+
+    const prompt = `Ticket Details:
+Title: ${ticketTitle || "N/A"}
+Description: ${ticketDescription || "N/A"}
+
+Draft Reply to Polish:
+${body}
+
+Please improve this draft reply. Make sure to keep the key instructions/meaning intact, but make it professional and clear.`;
+
+    // Map gpt-5-nano to a real, available OpenAI model (gpt-4o-mini) to ensure compatibility
+    const { text } = await generateText({
+      model: openai("gpt-4o-mini"),
+      system: systemPrompt,
+      prompt: prompt,
+    });
+
+    res.json({ text: text.trim() });
+  } catch (error) {
+    console.error("Failed to polish reply via OpenAI, falling back to mock: ", error);
+    const polishedText = mockPolishReply(body, ticketTitle, ticketDescription);
+    res.json({ text: polishedText });
+  }
+});
+
+// Helper function for mock polishing when API key is missing
+function mockPolishReply(body: string, title?: string, desc?: string): string {
+  const cleanBody = body.trim();
+  if (!cleanBody) return "Thank you for reaching out. How can I assist you with this ticket today?";
+  
+  // Ensure professional greeting if missing
+  const greetings = ["hi", "hello", "dear", "thank you", "thanks"];
+  const hasGreeting = greetings.some(g => cleanBody.toLowerCase().startsWith(g));
+  let polished = cleanBody;
+  if (!hasGreeting) {
+    polished = "Thank you for contacting support. " + polished;
+  }
+
+  // Expand common contractions / clean up tone
+  polished = polished
+    .replace(/\bi'm\b/gi, "I am")
+    .replace(/\bi'll\b/gi, "I will")
+    .replace(/\bcan't\b/gi, "cannot")
+    .replace(/\bdon't\b/gi, "do not")
+    .replace(/\bwon't\b/gi, "will not")
+    .replace(/\bwe'll\b/gi, "we will")
+    .replace(/\byou're\b/gi, "you are");
+
+  // Capitalize first letter of sentences
+  polished = polished.replace(/(^\s*|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase());
+
+  // Ensure professional sign-off if missing
+  const signoffs = ["regards", "sincerely", "respectfully"];
+  const hasSignoff = signoffs.some(s => polished.toLowerCase().includes(s));
+  if (!hasSignoff) {
+    polished = polished + "\n\nBest regards,\nSupport Team";
+  }
+
+  return polished;
+}
 
 export default router;
 

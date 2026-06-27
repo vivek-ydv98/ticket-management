@@ -59,7 +59,7 @@ export function clearAllFailedAttempts() {
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL!,
   basePath: "/api/auth",
-  trustedOrigins: process.env.TRUSTED_ORIGINS!.split(","),
+  trustedOrigins: process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(",") : [],
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   useSecureCookies: process.env.NODE_ENV === "production" ? undefined : false,
   emailAndPassword: {

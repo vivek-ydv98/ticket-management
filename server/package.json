@@ -5,8 +5,10 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/jsdom": "^28.0.3",
     "@types/mailparser": "^3.4.6",
-    "prisma": "^7.8.0"
+    "prisma": "^7.8.0",
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -19,18 +21,22 @@
     "e2e:headed": "bunx playwright test --headed"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.1",
     "@better-auth/prisma-adapter": "^1.6.20",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@sendgrid/mail": "^8.1.6",
     "@types/express": "^5.0.6",
+    "ai": "^7.0.3",
     "better-auth": "^1.6.20",
     "dompurify": "^3.4.11",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
+    "jsdom": "^29.1.1",
     "mailparser": "^3.9.12",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "zod": "^3.23.8"
   }
 }

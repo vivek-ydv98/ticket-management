@@ -101,34 +101,35 @@ export async function createTicketFromEmail(emailContent: string) {
 
     // Extract sender address from parsed.from (handle multiple possible formats) or envelope
     let fromAddress: string | null = null;
+    const mail = parsed as any;
 
-    // Handle parsed.from being an array of address objects
-    if (Array.isArray(parsed.from) && parsed.from.length > 0) {
+    // Handle mail.from being an array of address objects
+    if (Array.isArray(mail.from) && mail.from.length > 0) {
       // Take the first address
-      fromAddress = parsed.from[0].address;
+      fromAddress = mail.from[0].address || null;
     }
-    // Handle parsed.from being an object with a value property (array of address objects)
-    else if (parsed.from && typeof parsed.from === 'object' && 'value' in parsed.from &&
-             Array.isArray(parsed.from.value) && parsed.from.value.length > 0) {
+    // Handle mail.from being an object with a value property (array of address objects)
+    else if (mail.from && typeof mail.from === 'object' && 'value' in mail.from &&
+             Array.isArray(mail.from.value) && mail.from.value.length > 0) {
       // Take the first address from the value array
-      fromAddress = parsed.from.value[0].address;
+      fromAddress = mail.from.value[0].address || null;
     }
-    // Handle parsed.from being a single address object
-    else if (parsed.from && typeof parsed.from === 'object' && 'address' in parsed.from) {
-      fromAddress = parsed.from.address;
+    // Handle mail.from being a single address object
+    else if (mail.from && typeof mail.from === 'object' && 'address' in mail.from) {
+      fromAddress = mail.from.address || null;
     }
 
     // If not found, try the envelope (SMTP envelope sender)
-    if (!fromAddress && parsed.envelope) {
-      if (Array.isArray(parsed.envelope.from) && parsed.envelope.from.length > 0) {
-        fromAddress = parsed.envelope.from[0].address;
-      } else if (parsed.envelope.from && typeof parsed.envelope.from === 'object' && 'address' in parsed.envelope.from) {
-        fromAddress = parsed.envelope.from.address;
+    if (!fromAddress && mail.envelope) {
+      if (Array.isArray(mail.envelope.from) && mail.envelope.from.length > 0) {
+        fromAddress = mail.envelope.from[0].address || null;
+      } else if (mail.envelope.from && typeof mail.envelope.from === 'object' && 'address' in mail.envelope.from) {
+        fromAddress = mail.envelope.from.address || null;
       }
     }
 
     // Extract recipient address (keeping original method for now to avoid breaking changes)
-    const to = parsed.to?.text ?? '';
+    const to = (mail.to && !Array.isArray(mail.to) ? mail.to.text : Array.isArray(mail.to) ? mail.to[0]?.text : '') ?? '';
     const date = parsed.date ?? new Date();
 
     // Extract body - prefer HTML, fallback to plain text
