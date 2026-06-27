@@ -241,7 +241,7 @@ type ClassifyCategory = typeof VALID_CATEGORIES[number];
 function classifyEmailByKeywords(title: string, description: string): ClassifyCategory {
   const text = `${title} ${description}`.toLowerCase();
   const refundKw = ["refund", "charge", "invoice", "billing", "double charged", "overcharged", "cancellation", "cancel", "transaction", "money back", "purchase"];
-  const technicalKw = ["error", "bug", "crash", "timeout", "api", "integration", "not working", "broken", "failed", "exception", "500", "404", "memory", "performance", "slow", "ssl", "certificate", "postgres", "postgresql", "database", "query", "pool", "connection"];
+  const technicalKw = ["error", "bug", "crash", "timeout", "api", "integration", "not working", "broken", "failed", "exception", "500", "404", "memory", "performance", "slow", "ssl", "certificate", "postgres", "postgresql", "database", "query", "pool", "connection", "password", "login", "authentication"];
   if (refundKw.some((kw) => text.includes(kw))) return "REFUND_REQUEST";
   if (technicalKw.some((kw) => text.includes(kw))) return "TECHNICAL";
   return "GENERAL";
