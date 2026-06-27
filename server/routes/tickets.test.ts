@@ -467,4 +467,59 @@ describe("Ticket Routes - Assignment Validation", () => {
       expect(data.text).toContain("Thanks for feedback");
     });
   });
+
+  describe("POST /api/tickets/:id/summarize", () => {
+    it("returns 400 for invalid ticket ID format", async () => {
+      const res = await fetch(`${baseUrl}/abc/summarize`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(400);
+      const data = await res.json() as any;
+      expect(data.error).toBe("Invalid ticket ID format.");
+    });
+
+    it("returns 404 if ticket is not found", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue(null);
+
+      const res = await fetch(`${baseUrl}/999/summarize`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(404);
+      const data = await res.json() as any;
+      expect(data.error).toBe("Ticket not found.");
+    });
+
+    it("generates a ticket summary using mock fallback when API key is missing", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 42,
+        title: "Database issue",
+        description: "Postgres goes down under heavy load.",
+        replies: [
+          {
+            id: 1,
+            body: "Looking into it",
+            senderType: "AGENT",
+            user: { name: "Agent User" }
+          },
+          {
+            id: 2,
+            body: "Any updates?",
+            senderType: "CUSTOMER",
+            user: { name: "Customer User" }
+          }
+        ]
+      } as any);
+
+      const res = await fetch(`${baseUrl}/42/summarize`, {
+        method: "POST",
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.summary).toContain("Database issue");
+      expect(data.summary).toContain("Postgres goes down under heavy load.");
+      expect(data.summary).toContain("contains 2 total replies");
+      expect(data.summary).toContain("1 from agents and 1 from customers");
+    });
+  });
 });

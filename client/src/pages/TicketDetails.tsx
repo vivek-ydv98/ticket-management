@@ -12,6 +12,7 @@ import {
   Clock,
   AlertCircle,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { TicketStatus, TicketCategory, TicketPriority } from "@/core/src/index";
 
@@ -53,6 +54,23 @@ export default function TicketDetailsPage() {
   const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+
+  const handleSummarize = async () => {
+    setIsSummarizing(true);
+    try {
+      const response = await axios.post(`/api/tickets/${id}/summarize`, {}, {
+        withCredentials: true,
+      });
+      setSummary(response.data.summary);
+    } catch (err) {
+      console.error("Failed to generate summary:", err);
+      alert("Failed to generate ticket summary.");
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
 
 
   const statusLabels: Record<TicketStatus, string> = {
@@ -219,6 +237,35 @@ export default function TicketDetailsPage() {
                   <div className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">
                     {ticket.description || "No description provided."}
                   </div>
+                </div>
+
+                {/* Summarize Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleSummarize}
+                      disabled={isSummarizing}
+                      variant="outline"
+                      className="gap-2 cursor-pointer border-brand/30 hover:border-brand/60 bg-brand/5 hover:bg-brand/10 text-brand-foreground"
+                    >
+                      <Sparkles className={`h-4 w-4 text-brand ${isSummarizing ? 'animate-spin' : ''}`} />
+                      {isSummarizing ? "Summarizing..." : "Summarize Conversation"}
+                    </Button>
+                  </div>
+
+                  {summary && (
+                    <div className="p-6 rounded-xl border border-brand/20 bg-brand/5 backdrop-blur-md shadow-lg space-y-3 animate-fade-in">
+                      <div className="flex items-center gap-2 text-brand">
+                        <Sparkles className="h-4 w-4" />
+                        <h4 className="text-sm font-bold uppercase tracking-wider">
+                          AI Conversation Summary
+                        </h4>
+                      </div>
+                      <div className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">
+                        {summary}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Replies Thread */}

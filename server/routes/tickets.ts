@@ -527,5 +527,140 @@ function mockPolishReply(body: string, agentName: string, firstName: string, tit
   return `Hi ${firstName},\n\n${polishedBody}\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
 }
 
+// POST /api/tickets/:id/summarize - Summarize ticket and conversation history
+router.post("/:id/summarize", requireAuth, async (req, res) => {
+  const idStr = req.params.id as string;
+  const id = parseInt(idStr, 10);
+  if (isNaN(id)) {
+    return res.status(400).json({
+      error: "Invalid ticket ID format.",
+      message: "Invalid ticket ID format."
+    });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        replies: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                role: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        error: "Ticket not found.",
+        message: "Ticket not found."
+      });
+    }
+
+    const repliesList = ticket.replies || [];
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
+      // Mock summarization fallback
+      const summary = mockSummarizeTicket(ticket.title, ticket.description || "", repliesList);
+      return res.json({ summary });
+    }
+
+    const systemPrompt = `You are a helpful customer support assistant. Your task is to write a brief, professional, and clear summary of a support ticket and its conversation history.
+Keep it concise, focusing on:
+- The main issue the customer reported.
+- What has been done so far.
+- What the current status or next action is.
+
+Format the summary with:
+- A brief paragraph summarizing the situation.
+- Bullet points for key milestones or next steps if applicable.
+
+Return ONLY the summary text. Do not include labels, metadata, JSON, markdown code block wrappers, or other formatting.`;
+
+    const prompt = `Ticket: #${ticket.id}: ${ticket.title}
+Status: ${ticket.status}
+Priority: ${ticket.priority}
+Description:
+${ticket.description || "No description provided."}
+
+Conversation History (Replies):
+${repliesList.map((r, index) => `[Reply #${index + 1} by ${r.senderType} (${r.user?.name || r.user?.email || "Unknown"})]:
+${r.body}`).join("\n\n")}
+
+Please summarize the ticket and conversation history.`;
+
+    const { text } = await generateText({
+      model: openai("gpt-4o-mini"),
+      system: systemPrompt,
+      prompt: prompt,
+    });
+
+    res.json({ summary: text.trim() });
+  } catch (error) {
+    console.error("Failed to summarize ticket via OpenAI, falling back to mock: ", error);
+    try {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id },
+        include: {
+          replies: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+      if (ticket) {
+        const summary = mockSummarizeTicket(ticket.title, ticket.description || "", ticket.replies || []);
+        return res.json({ summary });
+      }
+    } catch (innerErr) {
+      console.error("Failed to generate fallback summary:", innerErr);
+    }
+    res.status(500).json({
+      error: "Failed to generate ticket summary.",
+      message: "Failed to generate ticket summary."
+    });
+  }
+});
+
+// Helper function to mock summarize a ticket
+function mockSummarizeTicket(title: string, description: string, replies: any[]): string {
+  const repliesCount = replies.length;
+  const agentRepliesCount = replies.filter(r => r.senderType === "AGENT").length;
+  const customerRepliesCount = replies.filter(r => r.senderType === "CUSTOMER").length;
+
+  let summary = `This ticket, titled "${title}", describes an issue regarding: "${description.split('\n')[0]}".\n\n`;
+  summary += `The thread contains ${repliesCount} total replies (${agentRepliesCount} from agents and ${customerRepliesCount} from customers).\n\n`;
+  
+  if (repliesCount > 0) {
+    summary += `Key milestones:\n`;
+    const firstReply = replies[0];
+    summary += `- The conversation started with a reply by ${firstReply.senderType} stating: "${firstReply.body.substring(0, 60)}${firstReply.body.length > 60 ? '...' : ''}"\n`;
+    if (repliesCount > 1) {
+      const latestReply = replies[replies.length - 1];
+      summary += `- The latest response was from ${latestReply.senderType}: "${latestReply.body.substring(0, 60)}${latestReply.body.length > 60 ? '...' : ''}"\n`;
+    }
+    summary += `\nNext Action: Review the conversation thread and proceed with resolving the customer's query.`;
+  } else {
+    summary += `No action has been taken on this ticket yet. The ticket is currently awaiting initial review.`;
+  }
+
+  return summary;
+}
+
 export default router;
 
