@@ -111,5 +111,19 @@ All OpenAI API calls in this project use **`gpt-5-nano`** as the default model.
 
 - Polish reply endpoint (`POST /api/tickets/polish`): `gpt-5-nano`
 - Summarize ticket endpoint (`POST /api/tickets/:id/summarize`): `gpt-5-nano`
+- Auto-classify on ticket creation (`POST /api/tickets`): `gpt-5-nano` — **non-blocking**
 - When adding new AI-powered features, always use `openai("gpt-5-nano")` with the Vercel AI SDK `generateText` helper.
 - If the `OPENAI_API_KEY` is missing, set to `"mock"`, or contains `"your_openai_api_key"`, the system automatically falls back to the local mock function — no API calls are made.
+
+### Auto-Classification (non-blocking)
+
+When a ticket is created via `POST /api/tickets` **without** an explicit `category`, the server:
+
+1. Responds with `201` immediately — the client is never blocked.
+2. Fires `classifyTicketAsync()` in the background (fire-and-forget).
+3. GPT classifies the ticket into one of: `GENERAL`, `TECHNICAL`, `REFUND_REQUEST`.
+4. The ticket row is updated via `prisma.ticket.update` once the classification is ready.
+
+**Fallback (`classifyByKeywords`)** — used when the API key is absent or GPT fails:
+- Keyword lists for `REFUND_REQUEST` (refund, charge, invoice, billing …) and `TECHNICAL` (error, bug, crash, timeout, api …).
+- Defaults to `GENERAL` if no keywords match.

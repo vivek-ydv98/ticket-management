@@ -90,6 +90,66 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
+const VALID_CATEGORIES = ["GENERAL", "TECHNICAL", "REFUND_REQUEST"] as const;
+type TicketCategory = typeof VALID_CATEGORIES[number];
+
+/**
+ * Non-blocking ticket classifier.
+ * Called after the ticket creation response is sent — never delays the API caller.
+ * Uses gpt-5-nano to pick the best TicketCategory from title + description.
+ * Falls back to keyword heuristics if the API key is missing or the call fails.
+ */
+async function classifyTicketAsync(ticketId: number, title: string, description: string): Promise<void> {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    let category: TicketCategory;
+
+    if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
+      category = classifyByKeywords(title, description);
+      console.log(`[classify] ticket #${ticketId} → ${category} (keyword fallback)`);
+    } else {
+      const systemPrompt = `You are a support ticket classifier. Given a ticket title and description, respond with EXACTLY one of these category labels and nothing else:
+GENERAL
+TECHNICAL
+REFUND_REQUEST
+
+Rules:
+- TECHNICAL: bugs, errors, crashes, performance issues, API problems, integration failures.
+- REFUND_REQUEST: refunds, charge disputes, billing errors, double charges, cancellations.
+- GENERAL: everything else — questions, feature requests, account queries, documentation.`;
+
+      const prompt = `Title: ${title}\nDescription: ${description || "(none)"}\n\nCategory:`;
+
+      const { text } = await generateText({
+        model: openai("gpt-5-nano"),
+        system: systemPrompt,
+        prompt,
+      });
+
+      const raw = text.trim().toUpperCase().replace(/[^A-Z_]/g, "") as TicketCategory;
+      category = VALID_CATEGORIES.includes(raw as any) ? raw : classifyByKeywords(title, description);
+      console.log(`[classify] ticket #${ticketId} → ${category} (AI)`);
+    }
+
+    await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { category },
+    });
+  } catch (err) {
+    console.error(`[classify] Failed to classify ticket #${ticketId}:`, err);
+  }
+}
+
+/** Lightweight keyword heuristic fallback for when the AI is unavailable */
+function classifyByKeywords(title: string, description: string): TicketCategory {
+  const text = `${title} ${description}`.toLowerCase();
+  const refundKeywords = ["refund", "charge", "invoice", "billing", "double charged", "overcharged", "cancellation", "cancel", "transaction"];
+  const technicalKeywords = ["error", "bug", "crash", "timeout", "api", "integration", "not working", "broken", "failed", "exception", "500", "404", "memory", "performance", "slow", "ssl", "certificate"];
+  if (refundKeywords.some((kw) => text.includes(kw))) return "REFUND_REQUEST";
+  if (technicalKeywords.some((kw) => text.includes(kw))) return "TECHNICAL";
+  return "GENERAL";
+}
+
 // POST /api/tickets - Create a new ticket
 router.post("/", requireAuth, async (req, res) => {
   const result = createTicketSchema.safeParse(req.body);
@@ -125,7 +185,14 @@ router.post("/", requireAuth, async (req, res) => {
         assignedTo,
       },
     });
+
+    // Respond immediately — do NOT await classification.
     res.status(201).json(ticket);
+
+    // Fire-and-forget: classify only when no category was supplied by the caller.
+    if (!category) {
+      classifyTicketAsync(ticket.id, title, description ?? "");
+    }
   } catch (error) {
     console.error("Failed to create ticket:", error);
     res.status(500).json({
