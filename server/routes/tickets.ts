@@ -401,9 +401,8 @@ Best regards,
 ${agentName}
 https://codewithai.com`;
 
-    // Map gpt-5-nano to a real, available OpenAI model (gpt-4o-mini) to ensure compatibility
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai("gpt-5-nano"),
       system: systemPrompt,
       prompt: prompt,
     });
@@ -597,7 +596,7 @@ ${r.body}`).join("\n\n")}
 Please summarize the ticket and conversation history.`;
 
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
+      model: openai("gpt-5-nano"),
       system: systemPrompt,
       prompt: prompt,
     });

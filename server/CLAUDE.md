@@ -104,3 +104,12 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+## AI Model
+
+All OpenAI API calls in this project use **`gpt-5-nano`** as the default model.
+
+- Polish reply endpoint (`POST /api/tickets/polish`): `gpt-5-nano`
+- Summarize ticket endpoint (`POST /api/tickets/:id/summarize`): `gpt-5-nano`
+- When adding new AI-powered features, always use `openai("gpt-5-nano")` with the Vercel AI SDK `generateText` helper.
+- If the `OPENAI_API_KEY` is missing, set to `"mock"`, or contains `"your_openai_api_key"`, the system automatically falls back to the local mock function — no API calls are made.
