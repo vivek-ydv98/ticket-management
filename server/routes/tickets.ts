@@ -348,6 +348,7 @@ router.post("/polish", requireAuth, async (req, res) => {
     });
   }
 
+  const agentName = req.user?.name || "Support Team";
   let ticketTitle = req.body.ticketTitle || "";
   let ticketDescription = req.body.ticketDescription || "";
 
@@ -369,12 +370,18 @@ router.post("/polish", requireAuth, async (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
       // Mock polishing fallback
-      const polishedText = mockPolishReply(body, ticketTitle, ticketDescription);
+      const polishedText = mockPolishReply(body, agentName, ticketTitle, ticketDescription);
       return res.json({ text: polishedText });
     }
 
     const systemPrompt = `You are an expert customer support agent. Your task is to polish and improve a draft reply to a support ticket.
 Make the reply professional, polite, grammatically correct, and clear.
+Make sure the reply is signed off with:
+Best regards,
+[Agent Name]
+https://codewithai.com
+
+Replace [Agent Name] with "${agentName}".
 Provide only the polished reply body. Do not include any meta-commentary, wrappers, markdown formatting (like code blocks), or labels (e.g., "Polished Reply:"). Return only the final text itself.`;
 
     const prompt = `Ticket Details:
@@ -384,7 +391,10 @@ Description: ${ticketDescription || "N/A"}
 Draft Reply to Polish:
 ${body}
 
-Please improve this draft reply. Make sure to keep the key instructions/meaning intact, but make it professional and clear.`;
+Please improve this draft reply. Make sure to keep the key instructions/meaning intact, but make it professional and clear. Sign off using:
+Best regards,
+${agentName}
+https://codewithai.com`;
 
     // Map gpt-5-nano to a real, available OpenAI model (gpt-4o-mini) to ensure compatibility
     const { text } = await generateText({
@@ -396,15 +406,17 @@ Please improve this draft reply. Make sure to keep the key instructions/meaning 
     res.json({ text: text.trim() });
   } catch (error) {
     console.error("Failed to polish reply via OpenAI, falling back to mock: ", error);
-    const polishedText = mockPolishReply(body, ticketTitle, ticketDescription);
+    const polishedText = mockPolishReply(body, agentName, ticketTitle, ticketDescription);
     res.json({ text: polishedText });
   }
 });
 
 // Helper function for mock polishing when API key is missing
-function mockPolishReply(body: string, title?: string, desc?: string): string {
+function mockPolishReply(body: string, agentName: string, title?: string, desc?: string): string {
   const cleanBody = body.trim();
-  if (!cleanBody) return "Thank you for reaching out. How can I assist you with this ticket today?";
+  if (!cleanBody) {
+    return `Thank you for reaching out. How can I assist you with this ticket today?\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
+  }
   
   // Ensure professional greeting if missing
   const greetings = ["hi", "hello", "dear", "thank you", "thanks"];
@@ -427,12 +439,14 @@ function mockPolishReply(body: string, title?: string, desc?: string): string {
   // Capitalize first letter of sentences
   polished = polished.replace(/(^\s*|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase());
 
-  // Ensure professional sign-off if missing
-  const signoffs = ["regards", "sincerely", "respectfully"];
-  const hasSignoff = signoffs.some(s => polished.toLowerCase().includes(s));
-  if (!hasSignoff) {
-    polished = polished + "\n\nBest regards,\nSupport Team";
+  // Clean up any existing signature to avoid duplicates
+  const signatureRegex = /(?:best\s+regards|sincerely|respectfully|kind\s+regards)[\s\S]*$/i;
+  if (signatureRegex.test(polished)) {
+    polished = polished.replace(signatureRegex, "").trim();
   }
+
+  // Append signature using agentName and URL
+  polished = polished + `\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
 
   return polished;
 }

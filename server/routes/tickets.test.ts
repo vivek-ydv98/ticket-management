@@ -24,7 +24,7 @@ vi.mock("../lib/db", () => ({
 // Mock requireAuth
 vi.mock("../lib/requireAuth", () => ({
   requireAuth: (req: any, res: any, next: any) => {
-    req.user = { id: "1", email: "agent@example.com", role: "AGENT" };
+    req.user = { id: "1", name: "Agent User", email: "agent@example.com", role: "AGENT" };
     next();
   },
 }));
@@ -348,6 +348,8 @@ describe("Ticket Routes - Assignment Validation", () => {
       expect(data.text).toContain("Thank you for contacting support.");
       expect(data.text).toContain("I will check the logs");
       expect(data.text).toContain("Best regards,");
+      expect(data.text).toContain("Agent User");
+      expect(data.text).toContain("https://codewithai.com");
     });
 
     it("polishes a reply with ticket context from DB if ticketId is provided", async () => {
@@ -383,6 +385,8 @@ describe("Ticket Routes - Assignment Validation", () => {
         expect(data.text).toContain("Thank you for contacting support.");
         expect(data.text).toContain("Please help me fix this soon");
         expect(data.text).toContain("Best regards,");
+        expect(data.text).toContain("Agent User");
+        expect(data.text).toContain("https://codewithai.com");
       } finally {
         process.env.OPENAI_API_KEY = "mock";
       }
