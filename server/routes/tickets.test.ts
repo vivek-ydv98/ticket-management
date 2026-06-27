@@ -345,7 +345,7 @@ describe("Ticket Routes - Assignment Validation", () => {
 
       expect(res.status).toBe(200);
       const data = await res.json() as any;
-      expect(data.text).toContain("Thank you for contacting support.");
+      expect(data.text).toContain("Hi there,");
       expect(data.text).toContain("I will check the logs");
       expect(data.text).toContain("Best regards,");
       expect(data.text).toContain("Agent User");
@@ -356,7 +356,7 @@ describe("Ticket Routes - Assignment Validation", () => {
       vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
         id: 42,
         title: "Database issue",
-        description: "Postgres goes down",
+        description: "From: John Doe <john@example.com>\nPostgres goes down",
       } as any);
 
       const res = await fetch(`${baseUrl}/polish`, {
@@ -367,6 +367,7 @@ describe("Ticket Routes - Assignment Validation", () => {
 
       expect(res.status).toBe(200);
       const data = await res.json() as any;
+      expect(data.text).toContain("Hi John,");
       expect(data.text.toLowerCase()).toContain("will restart db");
       expect(prisma.ticket.findUnique).toHaveBeenCalledWith({ where: { id: 42 } });
     });
@@ -382,7 +383,7 @@ describe("Ticket Routes - Assignment Validation", () => {
 
         expect(res.status).toBe(200);
         const data = await res.json() as any;
-        expect(data.text).toContain("Thank you for contacting support.");
+        expect(data.text).toContain("Hi there,");
         expect(data.text).toContain("Please help me fix this soon");
         expect(data.text).toContain("Best regards,");
         expect(data.text).toContain("Agent User");

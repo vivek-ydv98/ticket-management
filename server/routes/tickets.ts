@@ -355,7 +355,7 @@ router.post("/polish", requireAuth, async (req, res) => {
   try {
 
     if (ticketId) {
-      const parsedId = parseInt(ticketId, 10);
+      const parsedId = typeof ticketId === "number" ? ticketId : parseInt(ticketId, 10);
       if (!isNaN(parsedId)) {
         const ticket = await prisma.ticket.findUnique({
           where: { id: parsedId }
@@ -367,15 +367,18 @@ router.post("/polish", requireAuth, async (req, res) => {
       }
     }
 
+    const firstName = await getCustomerFirstName(ticketId, ticketDescription);
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
       // Mock polishing fallback
-      const polishedText = mockPolishReply(body, agentName, ticketTitle, ticketDescription);
+      const polishedText = mockPolishReply(body, agentName, firstName, ticketTitle, ticketDescription);
       return res.json({ text: polishedText });
     }
 
     const systemPrompt = `You are an expert customer support agent. Your task is to polish and improve a draft reply to a support ticket.
 Make the reply professional, polite, grammatically correct, and clear.
+Always address the customer by their first name: "${firstName}".
+For example, start the reply with: "Hi ${firstName}," or similar professional greeting.
 Make sure the reply is signed off with:
 Best regards,
 [Agent Name]
@@ -391,7 +394,9 @@ Description: ${ticketDescription || "N/A"}
 Draft Reply to Polish:
 ${body}
 
-Please improve this draft reply. Make sure to keep the key instructions/meaning intact, but make it professional and clear. Sign off using:
+Please improve this draft reply. Make sure to keep the key instructions/meaning intact, but make it professional and clear.
+Address the customer as: Hi ${firstName},
+Sign off using:
 Best regards,
 ${agentName}
 https://codewithai.com`;
@@ -406,28 +411,97 @@ https://codewithai.com`;
     res.json({ text: text.trim() });
   } catch (error) {
     console.error("Failed to polish reply via OpenAI, falling back to mock: ", error);
-    const polishedText = mockPolishReply(body, agentName, ticketTitle, ticketDescription);
+    const firstName = await getCustomerFirstName(ticketId, ticketDescription);
+    const polishedText = mockPolishReply(body, agentName, firstName, ticketTitle, ticketDescription);
     res.json({ text: polishedText });
   }
 });
 
+// Helper function to extract customer's first name from ticket/description
+async function getCustomerFirstName(ticketId?: string | number, ticketDescription?: string): Promise<string> {
+  let customerName = "";
+
+  // 1. Try to extract from From: line in description
+  if (ticketDescription) {
+    const fromMatch = ticketDescription.match(/From:\s*([^\n\r]+)/i);
+    if (fromMatch) {
+      const rawFrom = fromMatch[1].trim();
+      // Extract name before < if it exists
+      const nameEmailMatch = rawFrom.match(/^([^<]+)\s*<[^>]+>/);
+      if (nameEmailMatch) {
+        customerName = nameEmailMatch[1].trim();
+      } else {
+        // If it's just an email, extract local part
+        const emailMatch = rawFrom.match(/^([^@\s]+)@/);
+        if (emailMatch) {
+          customerName = emailMatch[1].trim();
+        }
+      }
+    }
+  }
+
+  // 2. Look up user by email if we parsed one from the description
+  if (ticketDescription && !customerName) {
+    try {
+      const emailMatch = ticketDescription.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
+      if (emailMatch) {
+        const email = emailMatch[1].trim();
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (user && user.name) {
+          customerName = user.name;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to look up user in getCustomerFirstName:", err);
+    }
+  }
+
+  // 3. Look up replies if ticketId is provided
+  if (ticketId && !customerName) {
+    try {
+      const parsedId = typeof ticketId === "number" ? ticketId : parseInt(ticketId, 10);
+      if (!isNaN(parsedId)) {
+        const customerReply = await prisma.reply.findFirst({
+          where: { ticketId: parsedId, senderType: "CUSTOMER" },
+          include: { user: true }
+        });
+        if (customerReply && customerReply.user?.name) {
+          customerName = customerReply.user.name;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to look up replies in getCustomerFirstName:", err);
+    }
+  }
+
+  // 4. Extract first name
+  if (customerName) {
+    let cleanedName = customerName.replace(/[._-]/g, " ").trim();
+    const firstWord = cleanedName.split(/\s+/)[0];
+    if (firstWord) {
+      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+    }
+  }
+
+  return "there";
+}
+
 // Helper function for mock polishing when API key is missing
-function mockPolishReply(body: string, agentName: string, title?: string, desc?: string): string {
+function mockPolishReply(body: string, agentName: string, firstName: string, title?: string, desc?: string): string {
   const cleanBody = body.trim();
   if (!cleanBody) {
-    return `Thank you for reaching out. How can I assist you with this ticket today?\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
+    return `Hi ${firstName},\n\nThank you for reaching out. How can I assist you with this ticket today?\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
   }
   
   // Ensure professional greeting if missing
-  const greetings = ["hi", "hello", "dear", "thank you", "thanks"];
-  const hasGreeting = greetings.some(g => cleanBody.toLowerCase().startsWith(g));
-  let polished = cleanBody;
-  if (!hasGreeting) {
-    polished = "Thank you for contacting support. " + polished;
+  const greetingRegex = /^(?:hi|hello|dear)(?:\s+there)?\s*[,.!?]*/i;
+  let bodyWithoutGreeting = cleanBody;
+  if (greetingRegex.test(cleanBody)) {
+    bodyWithoutGreeting = cleanBody.replace(greetingRegex, "").trim();
   }
 
   // Expand common contractions / clean up tone
-  polished = polished
+  let polishedBody = bodyWithoutGreeting
     .replace(/\bi'm\b/gi, "I am")
     .replace(/\bi'll\b/gi, "I will")
     .replace(/\bcan't\b/gi, "cannot")
@@ -436,19 +510,21 @@ function mockPolishReply(body: string, agentName: string, title?: string, desc?:
     .replace(/\bwe'll\b/gi, "we will")
     .replace(/\byou're\b/gi, "you are");
 
+  // Capitalize first letter of body
+  if (polishedBody) {
+    polishedBody = polishedBody.charAt(0).toUpperCase() + polishedBody.slice(1);
+  }
   // Capitalize first letter of sentences
-  polished = polished.replace(/(^\s*|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase());
+  polishedBody = polishedBody.replace(/([.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase());
 
   // Clean up any existing signature to avoid duplicates
   const signatureRegex = /(?:best\s+regards|sincerely|respectfully|kind\s+regards)[\s\S]*$/i;
-  if (signatureRegex.test(polished)) {
-    polished = polished.replace(signatureRegex, "").trim();
+  if (signatureRegex.test(polishedBody)) {
+    polishedBody = polishedBody.replace(signatureRegex, "").trim();
   }
 
-  // Append signature using agentName and URL
-  polished = polished + `\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
-
-  return polished;
+  // Return greeting, polished body, and signature
+  return `Hi ${firstName},\n\n${polishedBody}\n\nBest regards,\n${agentName}\nhttps://codewithai.com`;
 }
 
 export default router;
