@@ -17,6 +17,7 @@ vi.mock("../lib/db", () => ({
     reply: {
       findMany: vi.fn(),
       create: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -391,6 +392,79 @@ describe("Ticket Routes - Assignment Validation", () => {
       } finally {
         process.env.OPENAI_API_KEY = "mock";
       }
+    });
+
+    it("polishes a reply extracting name from email local part if only email is present in From:", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 43,
+        title: "Refund issue",
+        description: "From: alice.smith@example.com\nI want a refund",
+      } as any);
+
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "will issue refund", ticketId: 43 }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.text).toContain("Hi Alice,");
+      expect(data.text).toContain("Will issue refund");
+    });
+
+    it("polishes a reply lookup user name in DB if customer email is parsed", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 44,
+        title: "Billing query",
+        description: "From: bob@example.com\nWhere is my invoice?",
+      } as any);
+
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: "user-bob",
+        name: "Bob Jones",
+        email: "bob@example.com",
+      } as any);
+
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "invoice sent", ticketId: 44 }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.text).toContain("Hi Bob,");
+      expect(data.text).toContain("Invoice sent");
+    });
+
+    it("polishes a reply lookup user name in replies DB if ticketId is provided", async () => {
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 45,
+        title: "Feature request",
+        description: "No from line in description",
+      } as any);
+
+      // Mock user.findUnique to return null to force lookup to replies
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      vi.mocked(prisma.reply.findFirst).mockResolvedValue({
+        id: 101,
+        user: {
+          name: "Charlie Brown",
+        },
+      } as any);
+
+      const res = await fetch(`${baseUrl}/polish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "thanks for feedback", ticketId: 45 }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.text).toContain("Hi Charlie,");
+      expect(data.text).toContain("Thanks for feedback");
     });
   });
 });
