@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import express from "express";
+
+// Polyfill vi.mocked if not defined in this environment
+if (!(vi as any).mocked) {
+  (vi as any).mocked = (fn: any) => fn;
+}
+process.env.OPENAI_API_KEY = "mock";
+
 import router from "./tickets";
 import { prisma } from "../lib/db";
 
@@ -8,11 +15,14 @@ vi.mock("../lib/db", () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
+      create: vi.fn(),
     },
     ticket: {
       create: vi.fn(),
       update: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
+      findMany: vi.fn(),
     },
     reply: {
       findMany: vi.fn(),
@@ -184,6 +194,42 @@ describe("Ticket Routes - Assignment Validation", () => {
     expect(res.status).toBe(200);
     const data = await res.json() as any;
     expect(data.assignedTo).toBeNull();
+  });
+
+  describe("GET /api/tickets/stats", () => {
+    it("returns correct aggregated ticket statistics", async () => {
+      // Mock ticket.count calls
+      vi.mocked(prisma.ticket.count)
+        .mockResolvedValueOnce(10) // total
+        .mockResolvedValueOnce(3)  // open
+        .mockResolvedValueOnce(4); // resolvedByAI
+
+      // Mock ticket.findMany for resolved/closed resolution time calculation
+      const now = new Date();
+      const tenMinsAgo = new Date(now.getTime() - 10 * 60 * 1000);
+      const twentyMinsAgo = new Date(now.getTime() - 20 * 60 * 1000);
+      const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
+
+      vi.mocked(prisma.ticket.findMany)
+        .mockResolvedValueOnce([
+          { createdAt: tenMinsAgo, updatedAt: now }, // 10 mins
+          { createdAt: twentyMinsAgo, updatedAt: now }, // 20 mins
+          { createdAt: thirtyMinsAgo, updatedAt: now }, // 30 mins
+        ] as any)
+        .mockResolvedValueOnce([]); // mock the second findMany for 30-day daily counts
+
+      const res = await fetch(`${baseUrl}/stats`);
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.totalTickets).toBe(10);
+      expect(data.openTickets).toBe(3);
+      expect(data.resolvedByAI).toBe(4);
+      expect(data.percentResolvedByAI).toBe(40);
+      // Average is (10 + 20 + 30) / 3 = 20 mins = 20 * 60 * 1000 ms = 1200000 ms
+      expect(data.averageResolutionTimeMs).toBe(1200000);
+      expect(Array.isArray(data.ticketsPerDay)).toBe(true);
+      expect(data.ticketsPerDay.length).toBe(30);
+    });
   });
 
   describe("GET /api/tickets/:id/replies", () => {

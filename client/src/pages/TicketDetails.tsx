@@ -74,6 +74,8 @@ export default function TicketDetailsPage() {
 
 
   const statusLabels: Record<TicketStatus, string> = {
+    [TicketStatus.NEW]: "New",
+    [TicketStatus.PROCESSING]: "Processing",
     [TicketStatus.OPEN]: "Open",
     [TicketStatus.RESOLVED]: "Resolved",
     [TicketStatus.CLOSED]: "Closed",
@@ -169,6 +171,10 @@ export default function TicketDetailsPage() {
 
   const getStatusStyle = (status: TicketStatus) => {
     switch (status) {
+      case TicketStatus.NEW:
+        return "bg-violet-500/10 text-violet-400 border-violet-500/20";
+      case TicketStatus.PROCESSING:
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse";
       case TicketStatus.OPEN:
         return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
       case TicketStatus.RESOLVED:
@@ -186,7 +192,7 @@ export default function TicketDetailsPage() {
 
   return (
     <Layout>
-      <main className="max-w-4xl mx-auto p-8 space-y-6 animate-fade-in">
+      <main className="max-w-7xl mx-auto p-8 space-y-6 animate-fade-in">
         {/* Back Link */}
         <div className="flex items-center">
           <Link to="/tickets">

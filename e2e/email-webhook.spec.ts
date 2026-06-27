@@ -19,7 +19,7 @@ test.describe('Email Webhook Endpoint', () => {
     expect(json.ticket).toMatchObject({
       id: expect.any(Number),
       title: '[Email] Test Support Request',
-      status: 'OPEN',
+      status: 'NEW',
       category: null,
       priority: 'MEDIUM'
     });
@@ -57,7 +57,7 @@ test.describe('Email Webhook Endpoint', () => {
     expect(json).toHaveProperty('message', 'Ticket created successfully from email');
     expect(json.ticket).toMatchObject({
       title: '[Email] SendGrid Test',
-      status: 'OPEN',
+      status: 'NEW',
       category: null,
       priority: 'MEDIUM'
     });

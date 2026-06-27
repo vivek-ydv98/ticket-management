@@ -6,6 +6,8 @@ import { JSDOM } from "jsdom";
 import createDOMPurify from "dompurify";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { autoResolveTicketAsync } from "../lib/autoResolve";
+import { getCustomerFirstName } from "../lib/email";
 
 const window = new JSDOM("").window;
 const DOMPurify = createDOMPurify(window as any);
@@ -24,6 +26,7 @@ router.get("/", requireAuth, async (req, res) => {
 
   const { status, category, priority, sortBy, sortOrder, search, page, limit } = result.data;
   const where: any = {};
+  where.resolvedByAI = false;
 
   if (status) {
     where.status = status;
@@ -150,6 +153,18 @@ function classifyByKeywords(title: string, description: string): TicketCategory 
   return "GENERAL";
 }
 
+/** Helper for background processing of new tickets */
+async function processNewTicketBackground(ticketId: number, title: string, description: string, hasCategory: boolean) {
+  try {
+    await autoResolveTicketAsync(ticketId, title, description);
+    if (!hasCategory) {
+      await classifyTicketAsync(ticketId, title, description);
+    }
+  } catch (err) {
+    console.error(`[background-process] Failed for ticket #${ticketId}:`, err);
+  }
+}
+
 // POST /api/tickets - Create a new ticket
 router.post("/", requireAuth, async (req, res) => {
   const result = createTicketSchema.safeParse(req.body);
@@ -182,22 +197,112 @@ router.post("/", requireAuth, async (req, res) => {
         status,
         category: category || null,
         priority,
-        assignedTo,
+        assignedTo: assignedTo || "ai@example.com",
       },
     });
 
     // Respond immediately — do NOT await classification.
     res.status(201).json(ticket);
 
-    // Fire-and-forget: classify only when no category was supplied by the caller.
-    if (!category) {
-      classifyTicketAsync(ticket.id, title, description ?? "");
-    }
+    // Fire-and-forget: resolve and classify ticket in the background.
+    processNewTicketBackground(ticket.id, title, description ?? "", !!category);
   } catch (error) {
     console.error("Failed to create ticket:", error);
     res.status(500).json({
       error: "Failed to create ticket due to a database error.",
       message: "Failed to create ticket due to a database error."
+    });
+  }
+});
+
+// GET /api/tickets/stats - Get ticket metrics for the dashboard
+router.get("/stats", requireAuth, async (req, res) => {
+  try {
+    // 1. Total tickets
+    const totalTickets = await prisma.ticket.count();
+
+    // 2. Open tickets
+    const openTickets = await prisma.ticket.count({
+      where: { status: "OPEN" }
+    });
+
+    // 3. Number of tickets resolved by AI
+    const resolvedByAI = await prisma.ticket.count({
+      where: { resolvedByAI: true, status: "RESOLVED" }
+    });
+
+    // 4. Percentage of tickets resolved by AI
+    const percentResolvedByAI = totalTickets > 0 ? Math.round((resolvedByAI / totalTickets) * 100) : 0;
+
+    // 5. Average resolution time (RESOLVED and CLOSED tickets)
+    const resolvedOrClosedTickets = await prisma.ticket.findMany({
+      where: {
+        status: { in: ["RESOLVED", "CLOSED"] }
+      },
+      select: {
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    let averageResolutionTimeMs = 0;
+    if (resolvedOrClosedTickets.length > 0) {
+      const totalTimeMs = resolvedOrClosedTickets.reduce((acc, ticket) => {
+        const duration = new Date(ticket.updatedAt).getTime() - new Date(ticket.createdAt).getTime();
+        return acc + Math.max(0, duration);
+      }, 0);
+      averageResolutionTimeMs = Math.round(totalTimeMs / resolvedOrClosedTickets.length);
+    }
+
+    // 6. Tickets per day over the past 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    const ticketsLast30Days = await prisma.ticket.findMany({
+      where: {
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      select: {
+        createdAt: true
+      }
+    }) || [];
+
+    const dailyCounts: { [dateStr: string]: number } = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      dailyCounts[dateStr] = 0;
+    }
+
+    ticketsLast30Days.forEach(ticket => {
+      const dateStr = new Date(ticket.createdAt).toISOString().split("T")[0];
+      if (dailyCounts[dateStr] !== undefined) {
+        dailyCounts[dateStr]++;
+      }
+    });
+
+    const ticketsPerDay = Object.keys(dailyCounts).sort().map(dateStr => ({
+      date: dateStr,
+      count: dailyCounts[dateStr]
+    }));
+
+    res.json({
+      totalTickets,
+      openTickets,
+      resolvedByAI,
+      percentResolvedByAI,
+      averageResolutionTimeMs,
+      ticketsPerDay
+    });
+  } catch (error) {
+    console.error("Failed to fetch ticket stats:", error);
+    res.status(500).json({
+      error: "Failed to fetch ticket stats",
+      message: "Failed to fetch ticket stats"
     });
   }
 });
@@ -483,74 +588,7 @@ https://codewithai.com`;
   }
 });
 
-// Helper function to extract customer's first name from ticket/description
-async function getCustomerFirstName(ticketId?: string | number, ticketDescription?: string): Promise<string> {
-  let customerName = "";
 
-  // 1. Try to extract from From: line in description
-  if (ticketDescription) {
-    const fromMatch = ticketDescription.match(/From:\s*([^\n\r]+)/i);
-    if (fromMatch) {
-      const rawFrom = fromMatch[1].trim();
-      // Extract name before < if it exists
-      const nameEmailMatch = rawFrom.match(/^([^<]+)\s*<[^>]+>/);
-      if (nameEmailMatch) {
-        customerName = nameEmailMatch[1].trim();
-      } else {
-        // If it's just an email, extract local part
-        const emailMatch = rawFrom.match(/^([^@\s]+)@/);
-        if (emailMatch) {
-          customerName = emailMatch[1].trim();
-        }
-      }
-    }
-  }
-
-  // 2. Look up user by email if we parsed one from the description
-  if (ticketDescription && !customerName) {
-    try {
-      const emailMatch = ticketDescription.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
-      if (emailMatch) {
-        const email = emailMatch[1].trim();
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (user && user.name) {
-          customerName = user.name;
-        }
-      }
-    } catch (err) {
-      console.error("Failed to look up user in getCustomerFirstName:", err);
-    }
-  }
-
-  // 3. Look up replies if ticketId is provided
-  if (ticketId && !customerName) {
-    try {
-      const parsedId = typeof ticketId === "number" ? ticketId : parseInt(ticketId, 10);
-      if (!isNaN(parsedId)) {
-        const customerReply = await prisma.reply.findFirst({
-          where: { ticketId: parsedId, senderType: "CUSTOMER" },
-          include: { user: true }
-        });
-        if (customerReply && customerReply.user?.name) {
-          customerName = customerReply.user.name;
-        }
-      }
-    } catch (err) {
-      console.error("Failed to look up replies in getCustomerFirstName:", err);
-    }
-  }
-
-  // 4. Extract first name
-  if (customerName) {
-    let cleanedName = customerName.replace(/[._-]/g, " ").trim();
-    const firstWord = cleanedName.split(/\s+/)[0];
-    if (firstWord) {
-      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
-    }
-  }
-
-  return "there";
-}
 
 // Helper function for mock polishing when API key is missing
 function mockPolishReply(body: string, agentName: string, firstName: string, title?: string, desc?: string): string {

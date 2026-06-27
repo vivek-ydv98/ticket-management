@@ -54,6 +54,32 @@ if (!agentUser) {
   console.log(`Test user already exists: ${agentEmail}`);
 }
 
+// 2.5. Create or get AI Agent user
+const aiEmail = "ai@example.com";
+let aiUser = await prisma.user.findUnique({ where: { email: aiEmail } });
+if (!aiUser) {
+  const hashedPassword = await hashPassword("password123");
+  aiUser = await prisma.user.create({
+    data: {
+      email: aiEmail,
+      emailVerified: true,
+      name: "AI",
+      role: Role.AGENT,
+    },
+  });
+  await prisma.account.create({
+    data: {
+      userId: aiUser.id,
+      providerId: "credential",
+      accountId: aiUser.id,
+      password: hashedPassword,
+    },
+  });
+  console.log(`AI Agent user created: ${aiEmail}`);
+} else {
+  console.log(`AI Agent user already exists: ${aiEmail}`);
+}
+
 // 3. Clear old tickets
 await prisma.ticket.deleteMany();
 console.log("Cleared old tickets.");

@@ -168,8 +168,8 @@ ${body}
     // Determine priority - could analyze content for urgency indicators
     const priority: TicketPriority = TicketPriority.MEDIUM;
 
-    // Use OPEN as the initial status
-    const status: TicketStatus = TicketStatus.OPEN;
+    // Use NEW as the initial status
+    const status: TicketStatus = TicketStatus.NEW;
 
     // Create the ticket in the database
     const ticket = await prisma.ticket.create({
@@ -179,8 +179,8 @@ ${body}
         status,
         category,
         priority,
-        // We could extract assignee from email rules, but for now leave unassigned
-        assignedTo: null,
+        // When a new ticket arrives via email, assign it to the AI agent
+        assignedTo: "ai@example.com",
       }
     });
 
@@ -230,6 +230,79 @@ export function extractAssigneeFromEmail(parsedEmail: any): string | null {
   // 3. Parse CC/TO analysis, etc.
   return null;
 }
+
+/**
+ * Helper function to extract customer's first name from ticket/description
+ */
+export async function getCustomerFirstName(ticketId?: string | number, ticketDescription?: string): Promise<string> {
+  let customerName = "";
+
+  // 1. Try to extract from From: line in description
+  if (ticketDescription) {
+    const fromMatch = ticketDescription.match(/From:\s*([^\n\r]+)/i);
+    if (fromMatch) {
+      const rawFrom = fromMatch[1].trim();
+      // Extract name before < if it exists
+      const nameEmailMatch = rawFrom.match(/^([^<]+)\s*<[^>]+>/);
+      if (nameEmailMatch) {
+        customerName = nameEmailMatch[1].trim();
+      } else {
+        // If it's just an email, extract local part
+        const emailMatch = rawFrom.match(/^([^@\s]+)@/);
+        if (emailMatch) {
+          customerName = emailMatch[1].trim();
+        }
+      }
+    }
+  }
+
+  // 2. Look up user by email if we parsed one from the description
+  if (ticketDescription && !customerName) {
+    try {
+      const emailMatch = ticketDescription.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
+      if (emailMatch) {
+        const email = emailMatch[1].trim();
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (user && user.name) {
+          customerName = user.name;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to look up user in getCustomerFirstName:", err);
+    }
+  }
+
+  // 3. Look up replies if ticketId is provided
+  if (ticketId && !customerName) {
+    try {
+      const parsedId = typeof ticketId === "number" ? ticketId : parseInt(ticketId, 10);
+      if (!isNaN(parsedId)) {
+        const customerReply = await prisma.reply.findFirst({
+          where: { ticketId: parsedId, senderType: "CUSTOMER" },
+          include: { user: true }
+        });
+        if (customerReply && customerReply.user?.name) {
+          customerName = customerReply.user.name;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to look up replies in getCustomerFirstName:", err);
+    }
+  }
+
+  // 4. Extract first name
+  if (customerName) {
+    let cleanedName = customerName.replace(/[._-]/g, " ").trim();
+    const firstWord = cleanedName.split(/\s+/)[0];
+    if (firstWord) {
+      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+    }
+  }
+
+  return "there";
+}
+
+
 
 // ---------------------------------------------------------------------------
 // Auto-classification helpers (non-blocking, same gpt-5-nano pattern)

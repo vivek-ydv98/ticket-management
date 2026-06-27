@@ -8,7 +8,7 @@ export const ticketPrioritySchema = z.nativeEnum(TicketPriority);
 export const createTicketSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.').max(200, 'Title must be at most 200 characters.'),
   description: z.string().max(5000, 'Description must be at most 5000 characters.').optional().nullable(),
-  status: ticketStatusSchema.default(TicketStatus.OPEN),
+  status: ticketStatusSchema.default(TicketStatus.NEW),
   category: ticketCategorySchema.optional().nullable(),
   priority: ticketPrioritySchema.default(TicketPriority.MEDIUM),
   assignedTo: z.string().optional().nullable(),

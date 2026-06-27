@@ -104,6 +104,10 @@ export default function TicketsPage() {
   // Helper colors for badges
   const getStatusStyle = (status: TicketStatus) => {
     switch (status) {
+      case TicketStatus.NEW:
+        return "bg-violet-500/10 text-violet-400 border-violet-500/20";
+      case TicketStatus.PROCESSING:
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse";
       case TicketStatus.OPEN:
         return "bg-blue-500/10 text-blue-400 border-blue-500/20";
       case TicketStatus.RESOLVED:
@@ -297,6 +301,8 @@ export default function TicketsPage() {
                 className="h-9 rounded-md border border-border/40 bg-background/50 px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand cursor-pointer"
               >
                 <option value="">All Statuses</option>
+                <option value={TicketStatus.NEW}>New</option>
+                <option value={TicketStatus.PROCESSING}>Processing</option>
                 <option value={TicketStatus.OPEN}>Open</option>
                 <option value={TicketStatus.RESOLVED}>Resolved</option>
                 <option value={TicketStatus.CLOSED}>Closed</option>
@@ -519,7 +525,7 @@ export default function TicketsPage() {
 
         {/* Premium Detail Slide-Over Drawer */}
         <div
-          className={`fixed top-0 right-0 h-full w-full max-w-xl bg-card border-l border-border/40 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+          className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-card border-l border-border/40 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${
             selectedTicket ? "translate-x-0" : "translate-x-full"
           }`}
         >

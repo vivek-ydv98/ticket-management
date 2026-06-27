@@ -9,17 +9,18 @@ datasource db {
 }
 
 model Ticket {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  status      TicketStatus @default(OPEN)
-  category    TicketCategory?
-  priority    TicketPriority @default(MEDIUM)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String?
+  status       TicketStatus @default(NEW)
+  category     TicketCategory?
+  priority     TicketPriority @default(MEDIUM)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   // Optional: assigned agent ID (if we have User model later)
-  assignedTo  String? // store user email or id for simplicity
-  replies     Reply[]
+  assignedTo   String? // store user email or id for simplicity
+  resolvedByAI Boolean @default(false)
+  replies      Reply[]
 }
 
 // Authentication models from Better Auth
@@ -106,6 +107,8 @@ model Reply {
 }
 
 enum TicketStatus {
+  NEW
+  PROCESSING
   OPEN
   RESOLVED
   CLOSED

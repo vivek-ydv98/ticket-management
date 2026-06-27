@@ -12,7 +12,10 @@ import {
   ArrowRight,
   TrendingUp,
   User,
-  Users as UsersIcon
+  Users as UsersIcon,
+  Sparkles,
+  Percent,
+  Zap
 } from "lucide-react";
 import { TicketStatus, TicketPriority } from "@/core/src/index";
 
@@ -30,11 +33,30 @@ interface Ticket {
 export default function Home() {
   const { data: session, isPending } = useSession();
 
-  const { data: ticketsData, isLoading } = useQuery<{ tickets: Ticket[]; total: number }>({
+  interface StatsData {
+    totalTickets: number;
+    openTickets: number;
+    resolvedByAI: number;
+    percentResolvedByAI: number;
+    averageResolutionTimeMs: number;
+  }
+
+  const { data: statsData, isLoading: isStatsLoading } = useQuery<StatsData>({
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const response = await axios.get("/api/tickets/stats", {
+        withCredentials: true,
+      });
+      return response.data;
+    },
+    enabled: !!session,
+  });
+
+  const { data: ticketsData, isLoading: isTicketsLoading } = useQuery<{ tickets: Ticket[]; total: number }>({
     queryKey: ["dashboard-tickets"],
     queryFn: async () => {
       const response = await axios.get("/api/tickets", {
-        params: { sortBy: "newest", limit: 1000 },
+        params: { sortBy: "newest", limit: 5 },
         withCredentials: true,
       });
       return response.data;
@@ -45,15 +67,22 @@ export default function Home() {
   if (isPending) return null;
 
   const tickets = ticketsData?.tickets ?? [];
-  const totalCount = tickets.length;
-  const openCount = tickets.filter((t) => t.status === TicketStatus.OPEN).length;
-  const resolvedCount = tickets.filter((t) => t.status === TicketStatus.RESOLVED).length;
-  const closedCount = tickets.filter((t) => t.status === TicketStatus.CLOSED).length;
+
+  const formatDuration = (ms: number) => {
+    if (ms <= 0) return "N/A";
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return "< 1m";
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `${days}d`;
+  };
 
   const stats = [
     {
       title: "Total Tickets",
-      value: isLoading ? "..." : String(totalCount),
+      value: isStatsLoading ? "..." : String(statsData?.totalTickets ?? 0),
       icon: Ticket,
       trend: "All-time",
       positive: true,
@@ -63,7 +92,7 @@ export default function Home() {
     },
     {
       title: "Open Tickets",
-      value: isLoading ? "..." : String(openCount),
+      value: isStatsLoading ? "..." : String(statsData?.openTickets ?? 0),
       icon: Clock,
       trend: "Needs Attention",
       positive: false,
@@ -72,24 +101,34 @@ export default function Home() {
       border: "border-amber-500/20"
     },
     {
-      title: "Resolved Tickets",
-      value: isLoading ? "..." : String(resolvedCount),
-      icon: CheckCircle,
-      trend: "Successful",
+      title: "AI Resolved",
+      value: isStatsLoading ? "..." : String(statsData?.resolvedByAI ?? 0),
+      icon: Sparkles,
+      trend: "Automated",
+      positive: true,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20"
+    },
+    {
+      title: "AI Success Rate",
+      value: isStatsLoading ? "..." : `${statsData?.percentResolvedByAI ?? 0}%`,
+      icon: Percent,
+      trend: "Efficiency",
       positive: true,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
       border: "border-emerald-500/20"
     },
     {
-      title: "Closed Tickets",
-      value: isLoading ? "..." : String(closedCount),
-      icon: Smile,
-      trend: "Archived",
+      title: "Avg Resolution Time",
+      value: isStatsLoading ? "..." : formatDuration(statsData?.averageResolutionTimeMs ?? 0),
+      icon: Zap,
+      trend: "Speed",
       positive: true,
-      color: "text-zinc-400",
-      bg: "bg-zinc-500/10",
-      border: "border-zinc-500/20"
+      color: "text-pink-500",
+      bg: "bg-pink-500/10",
+      border: "border-pink-500/20"
     },
   ];
 
@@ -148,7 +187,7 @@ export default function Home() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             return (
@@ -175,6 +214,100 @@ export default function Home() {
           })}
         </div>
 
+        {/* 30-Day Ticket Volume Bar Chart */}
+        <Card className="border-border/40 bg-card/30 backdrop-blur-md border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-brand" />
+                Ticket Volume (Last 30 Days)
+              </h3>
+              <p className="text-xs text-muted-foreground">Daily ticket creation count</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="h-3 w-3 rounded bg-gradient-to-t from-brand to-blue-400 inline-block"></span>
+                Tickets Created
+              </div>
+            </div>
+          </div>
+
+          {isStatsLoading ? (
+            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+              Loading chart data...
+            </div>
+          ) : statsData?.ticketsPerDay && statsData.ticketsPerDay.length > 0 ? (
+            (() => {
+              const maxCount = Math.max(...statsData.ticketsPerDay.map(d => d.count), 5);
+              return (
+                <>
+                  <div className="h-48 flex items-end gap-1.5 pt-6 pb-2 border-b border-border/20 relative">
+                    {/* Gridlines */}
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 text-[10px] text-muted-foreground select-none">
+                      <div className="border-t border-dashed border-muted-foreground/50 w-full pt-1">
+                        {Math.round(maxCount)}
+                      </div>
+                      <div className="border-t border-dashed border-muted-foreground/50 w-full pt-1">
+                        {Math.round(maxCount * 0.75)}
+                      </div>
+                      <div className="border-t border-dashed border-muted-foreground/50 w-full pt-1">
+                        {Math.round(maxCount * 0.5)}
+                      </div>
+                      <div className="border-t border-dashed border-muted-foreground/50 w-full pt-1">
+                        {Math.round(maxCount * 0.25)}
+                      </div>
+                      <div className="w-full">0</div>
+                    </div>
+
+                    {/* Bars */}
+                    {statsData.ticketsPerDay.map((day) => {
+                      const heightPercent = (day.count / maxCount) * 100;
+                      return (
+                        <div
+                          key={day.date}
+                          className="flex-1 flex flex-col items-center group relative h-full justify-end z-10"
+                        >
+                          {/* Tooltip */}
+                          <div className="absolute bottom-full mb-2 bg-popover text-popover-foreground text-[10px] font-medium py-1 px-2 rounded border border-border shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-30">
+                            {new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}: <span className="font-bold text-brand">{day.count} tickets</span>
+                          </div>
+
+                          {/* Bar */}
+                          <div
+                            style={{ height: `${Math.max(4, heightPercent)}%` }}
+                            className="w-full rounded-t-sm bg-gradient-to-t from-brand/60 to-blue-500/80 group-hover:from-brand group-hover:to-blue-400 transition-all duration-300 relative shadow-sm"
+                          >
+                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-300 opacity-60 rounded-t-sm" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* X-axis labels (showing every 5th label to prevent crowding) */}
+                  <div className="flex justify-between text-[10px] text-muted-foreground px-1 select-none">
+                    {statsData.ticketsPerDay.map((day, idx) => {
+                      const isVisible = idx === 0 || idx === statsData.ticketsPerDay.length - 1 || idx % 5 === 0;
+                      const formattedDate = new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                      return (
+                        <div key={day.date} className={`w-0 overflow-visible text-center ${isVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                          <span className="whitespace-nowrap -translate-x-1/2 inline-block">
+                            {formattedDate}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()
+          ) : (
+            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+              No ticket data available.
+            </div>
+          )}
+        </Card>
+
         {/* Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Tickets Card */}
@@ -190,7 +323,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="p-0 flex-1">
               <div className="divide-y divide-border/30">
-                {isLoading ? (
+                {isTicketsLoading ? (
                   [1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center gap-4 p-4 animate-pulse">
                       <div className="h-9 w-9 rounded-lg bg-muted flex-shrink-0" />

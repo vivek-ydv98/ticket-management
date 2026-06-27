@@ -61,12 +61,37 @@ const mockTickets = [
 ];
 
 function setupMocks() {
-  vi.mocked(useQuery).mockReturnValue({
-    data: { tickets: mockTickets, total: mockTickets.length },
-    isLoading: false,
-    isError: false,
-    error: null,
-  } as any);
+  vi.mocked(useQuery).mockImplementation((options: any) => {
+    if (options.queryKey[0] === "dashboard-stats") {
+      return {
+        data: {
+          totalTickets: 124,
+          openTickets: 100,
+          resolvedByAI: 24,
+          percentResolvedByAI: 19,
+          averageResolutionTimeMs: 1200000, // 20 mins
+          ticketsPerDay: Array.from({ length: 30 }, (_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (29 - i));
+            return {
+              date: date.toISOString().split("T")[0],
+              count: i % 5,
+            };
+          }),
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+      } as any;
+    }
+    // "dashboard-tickets" query
+    return {
+      data: { tickets: mockTickets.slice(0, 5), total: mockTickets.length },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as any;
+  });
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -111,13 +136,15 @@ describe('Home', () => {
     expect(screen.getByText("124")).toBeInTheDocument();
     expect(screen.getByText("100")).toBeInTheDocument();
     expect(screen.getByText("24")).toBeInTheDocument();
-    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("19%")).toBeInTheDocument();
+    expect(screen.getByText("20m")).toBeInTheDocument();
 
-    // Check that the 24 value is in the resolved tickets card
-    const resolvedValue = screen.getByText("24");
-    expect(resolvedValue).toHaveClass(/text-3xl/);
-    const card = resolvedValue.closest('div');
-    expect(card.querySelector('h3')).toHaveTextContent('Resolved Tickets');
+    // Check headers
+    expect(screen.getByText('Total Tickets')).toBeInTheDocument();
+    expect(screen.getByText('Open Tickets')).toBeInTheDocument();
+    expect(screen.getByText('AI Resolved')).toBeInTheDocument();
+    expect(screen.getByText('AI Success Rate')).toBeInTheDocument();
+    expect(screen.getByText('Avg Resolution Time')).toBeInTheDocument();
   });
 
   it('renders recent tickets card', async () => {

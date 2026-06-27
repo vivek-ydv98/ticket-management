@@ -2,6 +2,17 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { createTicketFromEmail, normalizeEmailContent, classifyEmailTicketAsync } from "../lib/email";
 import type { Request, Response } from "express";
+import { autoResolveTicketAsync } from "../lib/autoResolve";
+
+// Helper for background processing of new email tickets
+async function processNewEmailTicketBackground(ticketId: number, title: string, description: string) {
+  try {
+    await autoResolveTicketAsync(ticketId, title, description);
+    await classifyEmailTicketAsync(ticketId, title, description);
+  } catch (err) {
+    console.error(`[background-process-email] Failed for ticket #${ticketId}:`, err);
+  }
+}
 
 // Get webhook path from environment or use default
 const EMAIL_WEBHOOK_PATH = process.env.EMAIL_WEBHOOK_PATH || "/receive";
@@ -52,8 +63,8 @@ router.post(EMAIL_WEBHOOK_PATH, async (req: Request, res: Response) => {
       }
     });
 
-    // Fire-and-forget: classify the ticket in the background
-    classifyEmailTicketAsync(ticket.id, ticket.title, ticket.description ?? "");
+    // Fire-and-forget: resolve and classify the ticket in the background
+    processNewEmailTicketBackground(ticket.id, ticket.title, ticket.description ?? "");
   } catch (error: any) {
     console.error("Failed to process email:", error);
 
