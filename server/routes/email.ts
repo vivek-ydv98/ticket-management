@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/db";
-import { createTicketFromEmail, normalizeEmailContent } from "../lib/email";
+import { createTicketFromEmail, normalizeEmailContent, classifyEmailTicketAsync } from "../lib/email";
 import type { Request, Response } from "express";
 
 // Get webhook path from environment or use default
@@ -51,6 +51,9 @@ router.post(EMAIL_WEBHOOK_PATH, async (req: Request, res: Response) => {
         description: ticket.description
       }
     });
+
+    // Fire-and-forget: classify the ticket in the background
+    classifyEmailTicketAsync(ticket.id, ticket.title, ticket.description ?? "");
   } catch (error: any) {
     console.error("Failed to process email:", error);
 

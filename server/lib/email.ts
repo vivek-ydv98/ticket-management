@@ -230,3 +230,61 @@ export function extractAssigneeFromEmail(parsedEmail: any): string | null {
   // 3. Parse CC/TO analysis, etc.
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Auto-classification helpers (non-blocking, same gpt-5-nano pattern)
+// ---------------------------------------------------------------------------
+
+const VALID_CATEGORIES = ["GENERAL", "TECHNICAL", "REFUND_REQUEST"] as const;
+type ClassifyCategory = typeof VALID_CATEGORIES[number];
+
+function classifyEmailByKeywords(title: string, description: string): ClassifyCategory {
+  const text = `${title} ${description}`.toLowerCase();
+  const refundKw = ["refund", "charge", "invoice", "billing", "double charged", "overcharged", "cancellation", "cancel", "transaction", "money back", "purchase"];
+  const technicalKw = ["error", "bug", "crash", "timeout", "api", "integration", "not working", "broken", "failed", "exception", "500", "404", "memory", "performance", "slow", "ssl", "certificate", "postgres", "postgresql", "database", "query", "pool", "connection"];
+  if (refundKw.some((kw) => text.includes(kw))) return "REFUND_REQUEST";
+  if (technicalKw.some((kw) => text.includes(kw))) return "TECHNICAL";
+  return "GENERAL";
+}
+
+/**
+ * Non-blocking ticket classifier for email-originated tickets.
+ * Called after the webhook response is sent — never delays the caller.
+ * Uses gpt-5-nano; falls back to keyword heuristics on API absence or failure.
+ */
+export async function classifyEmailTicketAsync(ticketId: number, title: string, description: string): Promise<void> {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    let category: ClassifyCategory;
+
+    if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
+      category = classifyEmailByKeywords(title, description);
+      console.log(`[classify-email] ticket #${ticketId} → ${category} (keyword fallback)`);
+    } else {
+      // Dynamic import to keep email.ts free from hard AI-SDK dependency at module level
+      const { generateText } = await import("ai");
+      const { openai } = await import("@ai-sdk/openai");
+
+      const systemPrompt = `You are a support ticket classifier. Given a ticket title and description, respond with EXACTLY one of these category labels and nothing else:\nGENERAL\nTECHNICAL\nREFUND_REQUEST\n\nRules:\n- TECHNICAL: bugs, errors, crashes, performance issues, API problems, integration failures, database questions.\n- REFUND_REQUEST: refunds, charge disputes, billing errors, double charges, cancellations, money-back requests.\n- GENERAL: everything else — questions, feature requests, account queries, documentation.`;
+
+      const prompt = `Title: ${title}\nDescription: ${description || "(none)"}\n\nCategory:`;
+
+      const { text } = await generateText({
+        model: openai("gpt-5-nano"),
+        system: systemPrompt,
+        prompt,
+      });
+
+      const raw = text.trim().toUpperCase().replace(/[^A-Z_]/g, "") as ClassifyCategory;
+      category = VALID_CATEGORIES.includes(raw as any) ? raw : classifyEmailByKeywords(title, description);
+      console.log(`[classify-email] ticket #${ticketId} → ${category} (AI)`);
+    }
+
+    await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { category },
+    });
+  } catch (err) {
+    console.error(`[classify-email] Failed to classify ticket #${ticketId}:`, err);
+  }
+}
