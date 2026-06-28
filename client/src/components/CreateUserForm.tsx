@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUserSchema, updateUserSchema, Role } from "@/core/src/index";
@@ -35,8 +35,8 @@ export default function CreateUserForm({ isOpen, onClose, userToEdit }: CreateUs
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<CreateUserFormValues>({
-    resolver: zodResolver(userToEdit ? updateUserSchema : createUserSchema) as Resolver<CreateUserFormValues>,
+  } = useForm({
+    resolver: zodResolver(userToEdit ? updateUserSchema : createUserSchema),
     defaultValues: { name: "", email: "", password: "" },
   });
 

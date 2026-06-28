@@ -103,7 +103,7 @@ describe('Home', () => {
   });
 
   it('renders dashboard header for admin user', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     // Should see admin-only link
@@ -112,7 +112,7 @@ describe('Home', () => {
   });
 
   it('renders dashboard header for regular user', async () => {
-    useSession.mockReturnValue(mockRegularUserSession);
+    vi.mocked(useSession).mockReturnValue(mockRegularUserSession as any);
     render(<Home />);
 
     // Should NOT see admin-only link
@@ -121,15 +121,15 @@ describe('Home', () => {
   });
 
   it('renders welcome section', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
-    expect(screen.getByRole('heading', { name: /welcome to the support dashboard/i })).toBeInTheDocument();
-    expect(screen.getByText(/monitor ticket trends, team performance, and customer satisfaction metrics in real-time/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /dashboard overview/i })).toBeInTheDocument();
+    expect(screen.getByText(/real-time analytics on ticket velocity, queue latency, and artificial intelligence resolution metrics/i)).toBeInTheDocument();
   });
 
   it('renders statistic cards', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     // Check for the dynamic stat card values
@@ -140,15 +140,15 @@ describe('Home', () => {
     expect(screen.getByText("20m")).toBeInTheDocument();
 
     // Check headers
-    expect(screen.getByText('Total Tickets')).toBeInTheDocument();
-    expect(screen.getByText('Open Tickets')).toBeInTheDocument();
-    expect(screen.getByText('AI Resolved')).toBeInTheDocument();
-    expect(screen.getByText('AI Success Rate')).toBeInTheDocument();
-    expect(screen.getByText('Avg Resolution Time')).toBeInTheDocument();
+    expect(screen.getByText('Total Tickets Raised')).toBeInTheDocument();
+    expect(screen.getByText('Open Backlog')).toBeInTheDocument();
+    expect(screen.getByText('AI Auto-Resolved')).toBeInTheDocument();
+    expect(screen.getByText('AI Resolution Rate')).toBeInTheDocument();
+    expect(screen.getByText('Avg Resolution')).toBeInTheDocument();
   });
 
   it('renders recent tickets card', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     expect(screen.getByRole('heading', { name: /recent tickets/i })).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('Home', () => {
   });
 
   it('renders team performance card', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     expect(screen.getByRole('heading', { name: /team performance/i })).toBeInTheDocument();
@@ -170,14 +170,14 @@ describe('Home', () => {
   });
 
   it('shows sign out button', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 
   it('shows online status indicator', async () => {
-    useSession.mockReturnValue(mockAdminSession);
+    vi.mocked(useSession).mockReturnValue(mockAdminSession as any);
     render(<Home />);
 
     expect(screen.getByText(/online/i)).toBeInTheDocument();

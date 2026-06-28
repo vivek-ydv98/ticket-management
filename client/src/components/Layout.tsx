@@ -1,20 +1,26 @@
 import { useSession, signOut } from "../lib/auth-client";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, LayoutDashboard, LogOut, Users, Ticket } from "lucide-react";
+import { ShieldAlert, LayoutDashboard, LogOut, Users, Ticket, Sun, Moon } from "lucide-react";
 import { Role } from "@/core/src/index";
+import { useTheme } from "../lib/useTheme";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const location = useLocation();
   const isAdmin = session?.user?.role === Role.ADMIN;
+  const { toggleTheme } = useTheme();
 
   const isLinkActive = (path: string) => {
     return location.pathname === path;
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-brand/20">
+    <div className="min-h-screen bg-background text-foreground selection:bg-brand/20 relative overflow-hidden flex flex-col">
+      {/* Ambient background decoration */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-40 dark:opacity-70 mask-radial-fade pointer-events-none z-0" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[450px] bg-glow-violet pointer-events-none z-0" />
+
       {/* Premium Glassmorphic Header */}
       <nav className="sticky top-0 z-50 flex items-center gap-4 px-6 py-4 border-b border-border/40 bg-background/60 backdrop-blur-md transition-all duration-300">
         <div className="flex items-center gap-2">
@@ -74,6 +80,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xs font-semibold text-emerald-400 tracking-wider uppercase">Online</span>
           </div>
 
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200"
+            aria-label="Toggle theme"
+          >
+            <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          </Button>
+
           <span className="text-sm text-muted-foreground font-medium">
             Welcome back, {session?.user?.name}
           </span>
@@ -91,7 +108,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* Main Content Wrapper */}
-      {children}
+      <div className="relative z-10 flex-1 flex flex-col">
+        {children}
+      </div>
     </div>
   );
 }

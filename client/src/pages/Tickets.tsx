@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import {
   Ticket as TicketIcon,
   Search,
-  SlidersHorizontal,
   ChevronDown,
   ChevronUp,
   ArrowUpDown,
@@ -105,15 +104,15 @@ export default function TicketsPage() {
   const getStatusStyle = (status: TicketStatus) => {
     switch (status) {
       case TicketStatus.NEW:
-        return "bg-violet-500/10 text-violet-400 border-violet-500/20";
+        return "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20";
       case TicketStatus.PROCESSING:
-        return "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse";
+        return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 animate-pulse";
       case TicketStatus.OPEN:
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
       case TicketStatus.RESOLVED:
-        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
       case TicketStatus.CLOSED:
-        return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
+        return "bg-zinc-500/10 text-zinc-650 dark:text-zinc-400 border-zinc-500/20";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -122,11 +121,11 @@ export default function TicketsPage() {
   const getPriorityStyle = (priority: TicketPriority) => {
     switch (priority) {
       case TicketPriority.HIGH:
-        return "bg-red-500/10 text-red-400 border-red-500/20";
+        return "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20";
       case TicketPriority.MEDIUM:
-        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+        return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
       case TicketPriority.LOW:
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -263,20 +262,22 @@ export default function TicketsPage() {
   return (
     <Layout>
       <main className="max-w-7xl mx-auto p-8 space-y-8 animate-fade-in relative">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-              Tickets Queue
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Filter, sort, search, and manage support tickets. Click a ticket to inspect details.
-            </p>
+        {/* Page Header with custom badge */}
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-semibold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+            Queue Manager
           </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-transparent leading-none">
+            Tickets Queue
+          </h1>
+          <p className="text-base text-muted-foreground max-w-2xl">
+            Real-time operations center for filtering, sorting, inspecting, and managing customer conversations.
+          </p>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="flex flex-col lg:flex-row gap-4 p-4 rounded-xl border border-border/40 bg-card/20 backdrop-blur-md shadow-md shadow-black/5">
+        <div className="flex flex-col lg:flex-row gap-4 p-5 rounded-2xl border border-border/40 bg-gradient-to-br from-card/60 to-card/20 backdrop-blur-md shadow-md shadow-black/5 hover:border-brand/20 transition-all duration-300">
           {/* Search bar */}
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -350,7 +351,7 @@ export default function TicketsPage() {
         )}
 
         {/* Tickets Table / List */}
-        <div className="overflow-hidden rounded-xl border border-border/40 bg-card/20 backdrop-blur-md shadow-lg shadow-black/10">
+        <div className="overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card/45 to-card/20 backdrop-blur-md shadow-lg shadow-black/10 hover:border-brand/20 transition-all duration-300">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border/20">
               <thead className="bg-muted/30">
@@ -518,14 +519,14 @@ export default function TicketsPage() {
         {/* Backdrop for Slide-over Details Drawer */}
         {selectedTicket && (
           <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
             onClick={() => setSelectedTicket(null)}
           />
         )}
 
         {/* Premium Detail Slide-Over Drawer */}
         <div
-          className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-card border-l border-border/40 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+          className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-card/90 backdrop-blur-xl border-l border-border/40 shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${
             selectedTicket ? "translate-x-0" : "translate-x-full"
           }`}
         >

@@ -111,14 +111,18 @@ export default function UsersPage() {
   return (
     <Layout>
       <main className="max-w-7xl mx-auto p-8 space-y-8 animate-fade-in">
-        {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+        {/* Page Header with custom badge */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-semibold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+              Access Control
+            </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text text-transparent leading-none">
               User Management
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              View and manage system users, their access levels, and roles.
+            <p className="text-base text-muted-foreground max-w-2xl">
+              View and manage system users, access privileges, and security roles.
             </p>
           </div>
           <Button
@@ -126,9 +130,9 @@ export default function UsersPage() {
               setUserToEdit(null);
               setIsOpen(true);
             }}
-            className="bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-md shadow-brand/10 hover:shadow-brand/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0"
+            className="bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-md shadow-brand/10 hover:shadow-brand/20 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 h-11 px-5 rounded-xl cursor-pointer"
           >
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-4.5 w-4.5" />
             <span>Create User</span>
           </Button>
         </div>

@@ -172,15 +172,15 @@ export default function TicketDetailsPage() {
   const getStatusStyle = (status: TicketStatus) => {
     switch (status) {
       case TicketStatus.NEW:
-        return "bg-violet-500/10 text-violet-400 border-violet-500/20";
+        return "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20";
       case TicketStatus.PROCESSING:
-        return "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse";
+        return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 animate-pulse";
       case TicketStatus.OPEN:
-        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
       case TicketStatus.RESOLVED:
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
+        return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
       case TicketStatus.CLOSED:
-        return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
+        return "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20";
     }
   };
 
@@ -219,14 +219,14 @@ export default function TicketDetailsPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border/40 pb-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-brand uppercase tracking-wider bg-brand/10 px-2 py-0.5 rounded border border-brand/20">
+                  <span className="text-xs font-bold text-brand uppercase tracking-wider bg-brand/10 px-3 py-1 rounded-full border border-brand/25">
                     Ticket #{ticket.id}
                   </span>
-                  <span className={`px-2 py-0.5 text-xs font-semibold rounded border ${getStatusStyle(ticket.status)}`}>
+                  <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${getStatusStyle(ticket.status)}`}>
                     {statusLabels[ticket.status]}
                   </span>
                 </div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">
+                <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">
                   {ticket.title}
                 </h1>
               </div>
@@ -236,7 +236,7 @@ export default function TicketDetailsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left description column */}
               <div className="md:col-span-2 space-y-6">
-                <div className="p-6 rounded-xl border border-border/40 bg-card/20 backdrop-blur-md shadow-lg shadow-black/10 space-y-4">
+                <div className="p-6 rounded-2xl border border-border/40 bg-gradient-to-br from-card/50 to-card/25 backdrop-blur-md shadow-lg shadow-black/5 hover:border-brand/20 transition-all duration-300 space-y-4">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
                     Description
                   </h3>
@@ -252,7 +252,7 @@ export default function TicketDetailsPage() {
                       onClick={handleSummarize}
                       disabled={isSummarizing}
                       variant="outline"
-                      className="gap-2 cursor-pointer border-brand/30 hover:border-brand/60 bg-brand/5 hover:bg-brand/10 text-brand-foreground"
+                      className="gap-2 cursor-pointer border-brand/30 hover:border-brand/60 bg-brand/10 hover:bg-brand/15 text-brand hover:shadow-lg hover:shadow-brand/5 transition-all duration-200"
                     >
                       <Sparkles className={`h-4 w-4 text-brand ${isSummarizing ? 'animate-spin' : ''}`} />
                       {isSummarizing ? "Summarizing..." : "Summarize Conversation"}
@@ -260,7 +260,7 @@ export default function TicketDetailsPage() {
                   </div>
 
                   {summary && (
-                    <div className="p-6 rounded-xl border border-brand/20 bg-brand/5 backdrop-blur-md shadow-lg space-y-3 animate-fade-in">
+                    <div className="p-6 rounded-2xl border border-brand/20 bg-brand/5 backdrop-blur-md shadow-lg space-y-3 animate-fade-in">
                       <div className="flex items-center gap-2 text-brand">
                         <Sparkles className="h-4 w-4" />
                         <h4 className="text-sm font-bold uppercase tracking-wider">
@@ -292,7 +292,7 @@ export default function TicketDetailsPage() {
 
               {/* Right metadata column */}
               <div className="md:col-span-1 space-y-6">
-                <div className="p-6 rounded-xl border border-border/40 bg-card/20 backdrop-blur-md shadow-lg shadow-black/10 space-y-6">
+                <div className="p-6 rounded-2xl border border-border/40 bg-gradient-to-br from-card/50 to-card/25 backdrop-blur-md shadow-lg shadow-black/5 hover:border-brand/20 transition-all duration-300 space-y-6">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground border-b border-border/10 pb-3">
                     Properties
                   </h3>

@@ -207,7 +207,7 @@ describe('TicketDetailsPage', () => {
     });
 
     it('renders "No description provided." when description is null', () => {
-      setupQuery({ ticket: { ...mockTicket, description: null } });
+      setupQuery({ ticket: { ...mockTicket, description: null as any } });
       renderPage();
       expect(screen.getByText('No description provided.')).toBeInTheDocument();
     });

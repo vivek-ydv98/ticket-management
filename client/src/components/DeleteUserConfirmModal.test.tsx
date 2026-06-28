@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "../test/render";
+import { render, screen, fireEvent } from "../test/render";
 import DeleteUserConfirmModal from "./DeleteUserConfirmModal";
 
 describe("DeleteUserConfirmModal", () => {

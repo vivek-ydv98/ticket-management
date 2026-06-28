@@ -70,7 +70,7 @@ export default function UsersTable({ users, isLoading, onEdit, onDelete }: Users
   const showActions = !!onEdit || !!onDelete;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/40 bg-card/20 backdrop-blur-md shadow-lg shadow-black/10">
+    <div className="overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-b from-card/45 to-card/20 backdrop-blur-md shadow-lg shadow-black/10 hover:border-brand/20 transition-all duration-300">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-border/20">
           <TableHeader showActions={showActions} />
@@ -82,7 +82,7 @@ export default function UsersTable({ users, isLoading, onEdit, onDelete }: Users
                 {users.map((user) => (
                   <tr
                     key={user.id}
-                    className="hover:bg-muted/30 transition-all duration-200 border-b border-border/10 last:border-b-0 group"
+                    className="hover:bg-brand/5 dark:hover:bg-brand/5 transition-all duration-200 border-b border-border/10 last:border-b-0 group cursor-pointer"
                   >
                     {/* Name */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground group-hover:text-brand transition-colors">
@@ -107,10 +107,11 @@ export default function UsersTable({ users, isLoading, onEdit, onDelete }: Users
                     {/* Role */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span
-                        className={`px-2.5 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${user.role === Role.ADMIN
-                            ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                            : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}
+                        className={`px-2.5 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${
+                          user.role === Role.ADMIN
+                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                        }`}
                       >
                         {user.role === Role.ADMIN ? (
                           <Shield className="h-3 w-3" />
