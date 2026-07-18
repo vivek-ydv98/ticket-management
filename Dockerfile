@@ -19,13 +19,13 @@ COPY server/ ./server/
 # Install all workspace dependencies
 RUN bun install
 
+# Generate Prisma Client first (so type definitions are available for client compilation)
+WORKDIR /app/server
+RUN bunx prisma generate
+
 # Build client
 WORKDIR /app/client
 RUN bun run build
-
-# Generate Prisma Client
-WORKDIR /app/server
-RUN bunx prisma generate
 
 # Stage 2: Production runner
 FROM base AS runner
