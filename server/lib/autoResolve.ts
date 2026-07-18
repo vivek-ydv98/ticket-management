@@ -69,14 +69,15 @@ export async function autoResolveTicketAsync(
 
     // 4. Check API Key for AI vs Fallback Mock
     const apiKey = process.env.OPENAI_API_KEY;
+    const aiUserId = aiUser?.id || "ai-user-id";
     if (!apiKey || apiKey === "mock" || apiKey.includes("your_openai_api_key")) {
-      await runMockResolveFallback(ticketId, title, description, aiUser.id);
+      await runMockResolveFallback(ticketId, title, description, aiUserId);
     } else {
       try {
-        await runAIResolution(ticketId, title, description, kbContent, aiUser.id);
+        await runAIResolution(ticketId, title, description, kbContent, aiUserId);
       } catch (aiErr) {
         console.error(`[auto-resolve] AI resolution failed for ticket #${ticketId}, falling back to mock:`, aiErr);
-        await runMockResolveFallback(ticketId, title, description, aiUser.id);
+        await runMockResolveFallback(ticketId, title, description, aiUserId);
       }
     }
   } catch (error) {
@@ -143,6 +144,18 @@ async function runMockResolveFallback(
         resolvedByAI: true,
       },
     });
+
+    // If the ticket originated from an email, send the response email
+    if (title.startsWith("[Email]")) {
+      const emailMatch = description.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
+      if (emailMatch) {
+        const customerEmail = emailMatch[1]!.trim();
+        const emailSubject = `Re: ${title.replace("[Email] ", "")}`;
+        const { sendEmailNotification } = require("./email");
+        sendEmailNotification(customerEmail, emailSubject, replyBody)
+          .catch((err: any) => console.error("[SMTP] Failed to send AI auto-resolve reply email:", err));
+      }
+    }
 
     console.log(`[auto-resolve] Ticket #${ticketId} auto-resolved (mock fallback)`);
   } else {
@@ -242,6 +255,18 @@ Description: ${description || "(no description)"}`;
         resolvedByAI: true,
       },
     });
+
+    // If the ticket originated from an email, send the response email
+    if (title.startsWith("[Email]")) {
+      const emailMatch = description.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
+      if (emailMatch) {
+        const customerEmail = emailMatch[1]!.trim();
+        const emailSubject = `Re: ${title.replace("[Email] ", "")}`;
+        const { sendEmailNotification } = require("./email");
+        sendEmailNotification(customerEmail, emailSubject, result.replyBody)
+          .catch((err: any) => console.error("[SMTP] Failed to send AI auto-resolve reply email:", err));
+      }
+    }
 
     console.log(`[auto-resolve] Ticket #${ticketId} auto-resolved (AI)`);
   } else {

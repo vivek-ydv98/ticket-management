@@ -82,152 +82,43 @@ if (!aiUser) {
 
 // 3. Clear old tickets
 await prisma.ticket.deleteMany();
-console.log("Cleared old tickets.");
+await prisma.reply.deleteMany();
+console.log("Cleared old tickets and replies.");
 
-// 4. Create new diverse tickets
+const now = Date.now();
+const DAY = 1000 * 60 * 60 * 24;
+
+// 4. Create diverse tickets spanning 30 days
 const ticketsData = [
-  {
-    title: "Database connection timeout in production",
-    description: "Database keeps timing out during peak traffic hours. Need to investigate Prisma pool size.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.HIGH,
-    assignedTo: agentEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-  },
-  {
-    title: "Request for subscription pricing discount",
-    description: "Enterprise lead asking for 15% annual discount options.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.LOW,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-  },
-  {
-    title: "Refund requested for double charge",
-    description: "Invoice #9823 was charged twice on client's card. Please reverse one.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.REFUND_REQUEST,
-    priority: TicketPriority.HIGH,
-    assignedTo: adminEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-  },
-  {
-    title: "Login button not working on iOS Safari",
-    description: "Users report click gets swallowed on iOS 17.5 Safari browser.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.MEDIUM,
-    assignedTo: agentEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 hours ago
-  },
-  {
-    title: "General inquiry about API rate limits",
-    description: "Client asking if they can increase rate limit to 500 requests/minute.",
-    status: TicketStatus.RESOLVED,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.LOW,
-    assignedTo: agentEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-  },
-  {
-    title: "Security vulnerability report: Package leak",
-    description: "CVE-2026 reports vulnerability in one of the nested client dependencies.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.HIGH,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days ago
-  },
-  {
-    title: "Duplicate refund for transaction TX-1002",
-    description: "Accidental double refund issued for a customer return last week.",
-    status: TicketStatus.CLOSED,
-    category: TicketCategory.REFUND_REQUEST,
-    priority: TicketPriority.MEDIUM,
-    assignedTo: adminEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4), // 4 days ago
-  },
-  {
-    title: "Typo in homepage features section",
-    description: "Change 'Antigravity' to 'Anti-gravity' in marketing copy.",
-    status: TicketStatus.RESOLVED,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.LOW,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5), // 5 days ago
-  },
-  {
-    title: "Memory leak on background job runner",
-    description: "Node.js process runs out of memory every 48 hours. Leak likely in email parser.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.HIGH,
-    assignedTo: agentEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6), // 6 days ago
-  },
-  {
-    title: "Wrong item shipped to customer #2293",
-    description: "Customer ordered a keyboard but received a mouse instead.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.MEDIUM,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 8), // 8 days ago
-  },
-  {
-    title: "Billing statement missing invoice details",
-    description: "June invoice does not show the itemized tax breakdown.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.LOW,
-    assignedTo: adminEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10), // 10 days ago
-  },
-  {
-    title: "Cannot upload attachments in ticket thread",
-    description: "Error uploading 5MB PDF file to ticket message.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.HIGH,
-    assignedTo: agentEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12), // 12 days ago
-  },
-  {
-    title: "Update documentation for API endpoints",
-    description: "Please document the new query parameters for tickets endpoint.",
-    status: TicketStatus.RESOLVED,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.LOW,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14), // 14 days ago
-  },
-  {
-    title: "Broken link in support footer page",
-    description: "Terms of Service link in footer is pointing to localhost.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.GENERAL,
-    priority: TicketPriority.MEDIUM,
-    assignedTo: null,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 16), // 16 days ago
-  },
-  {
-    title: "Password reset link expires too quickly",
-    description: "Users complain the link expires in 5 minutes instead of 1 hour.",
-    status: TicketStatus.OPEN,
-    category: TicketCategory.TECHNICAL,
-    priority: TicketPriority.HIGH,
-    assignedTo: adminEmail,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 18), // 18 days ago
-  }
+  { title: "Database connection timeout in production", description: "Database keeps timing out during peak traffic hours. Need to investigate Prisma pool size.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: agentEmail, createdAt: new Date(now - DAY * 0.02) },
+  { title: "Request for subscription pricing discount", description: "Enterprise lead asking for 15% annual discount options.", status: TicketStatus.OPEN, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: null, createdAt: new Date(now - DAY * 0.08) },
+  { title: "Refund requested for double charge", description: "Invoice #9823 was charged twice on client's card. Please reverse one.", status: TicketStatus.OPEN, category: TicketCategory.REFUND_REQUEST, priority: TicketPriority.HIGH, assignedTo: adminEmail, createdAt: new Date(now - DAY * 0.21) },
+  { title: "Login button not working on iOS Safari", description: "Users report click gets swallowed on iOS 17.5 Safari browser.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.MEDIUM, assignedTo: agentEmail, createdAt: new Date(now - DAY * 0.5) },
+  { title: "General inquiry about API rate limits", description: "Client asking if they can increase rate limit to 500 requests/minute.", status: TicketStatus.RESOLVED, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: agentEmail, createdAt: new Date(now - DAY * 2) },
+  { title: "Security vulnerability report: Package leak", description: "CVE-2026 reports vulnerability in one of the nested client dependencies.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: null, createdAt: new Date(now - DAY * 3) },
+  { title: "Duplicate refund for transaction TX-1002", description: "Accidental double refund issued for a customer return last week.", status: TicketStatus.CLOSED, category: TicketCategory.REFUND_REQUEST, priority: TicketPriority.MEDIUM, assignedTo: adminEmail, createdAt: new Date(now - DAY * 4) },
+  { title: "Typo in homepage features section", description: "Change 'Antigravity' to 'Anti-gravity' in marketing copy.", status: TicketStatus.RESOLVED, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: null, createdAt: new Date(now - DAY * 5) },
+  { title: "Memory leak on background job runner", description: "Node.js process runs out of memory every 48 hours. Leak likely in email parser.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: agentEmail, createdAt: new Date(now - DAY * 6) },
+  { title: "Wrong item shipped to customer #2293", description: "Customer ordered a keyboard but received a mouse instead.", status: TicketStatus.OPEN, category: TicketCategory.GENERAL, priority: TicketPriority.MEDIUM, assignedTo: null, createdAt: new Date(now - DAY * 8) },
+  { title: "Billing statement missing invoice details", description: "June invoice does not show the itemized tax breakdown.", status: TicketStatus.OPEN, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: adminEmail, createdAt: new Date(now - DAY * 10) },
+  { title: "Cannot upload attachments in ticket thread", description: "Error uploading 5MB PDF file to ticket message.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: agentEmail, createdAt: new Date(now - DAY * 12) },
+  { title: "Update documentation for API endpoints", description: "Please document the new query parameters for tickets endpoint.", status: TicketStatus.RESOLVED, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: null, createdAt: new Date(now - DAY * 14) },
+  { title: "Broken link in support footer page", description: "Terms of Service link in footer is pointing to localhost.", status: TicketStatus.OPEN, category: TicketCategory.GENERAL, priority: TicketPriority.MEDIUM, assignedTo: null, createdAt: new Date(now - DAY * 16) },
+  { title: "Password reset link expires too quickly", description: "Users complain the link expires in 5 minutes instead of 1 hour.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: adminEmail, createdAt: new Date(now - DAY * 18) },
+  { title: "Data export feature missing CSV columns", description: "Customer data export missing recent purchase history columns.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.MEDIUM, assignedTo: agentEmail, createdAt: new Date(now - DAY * 20) },
+  { title: "Request for team account upgrade", description: "Customer wants to upgrade from Pro to Enterprise plan.", status: TicketStatus.RESOLVED, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: adminEmail, createdAt: new Date(now - DAY * 22) },
+  { title: "Refund for canceled subscription", description: "Customer canceled within trial period, requesting full refund.", status: TicketStatus.CLOSED, category: TicketCategory.REFUND_REQUEST, priority: TicketPriority.MEDIUM, assignedTo: null, createdAt: new Date(now - DAY * 24) },
+  { title: "Two-factor authentication setup failure", description: "SMS code never arrives for users in European region.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.HIGH, assignedTo: agentEmail, createdAt: new Date(now - DAY * 26) },
+  { title: "Invoice PDF download returns 404", description: "Invoice links in billing portal returning 404 errors.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.MEDIUM, assignedTo: null, createdAt: new Date(now - DAY * 28) },
+  { title: "Feature request: Dark mode toggle", description: "Multiple users requesting dark mode for the dashboard.", status: TicketStatus.OPEN, category: TicketCategory.GENERAL, priority: TicketPriority.LOW, assignedTo: null, createdAt: new Date(now - DAY * 29) },
+  { title: "API key rotation automation needed", description: "Security team requests automated monthly key rotation.", status: TicketStatus.OPEN, category: TicketCategory.TECHNICAL, priority: TicketPriority.MEDIUM, assignedTo: adminEmail, createdAt: new Date(now - DAY * 30) },
 ];
 
 for (const t of ticketsData) {
   await prisma.ticket.create({ data: t });
 }
 
-// Generate 100 additional realistic fake tickets dynamically
+// Generate 150 additional tickets spread across 30 days
 const statuses = [TicketStatus.OPEN, TicketStatus.RESOLVED, TicketStatus.CLOSED];
 const categories = [TicketCategory.GENERAL, TicketCategory.TECHNICAL, TicketCategory.REFUND_REQUEST];
 const priorities = [TicketPriority.LOW, TicketPriority.MEDIUM, TicketPriority.HIGH];
@@ -241,10 +132,15 @@ const subjects = [
   "Mobile app crash on login screen",
   "Export CSV feature fails on large datasets",
   "SSL certificate warning in staging environment",
-  "Request to delete personal data"
+  "Request to delete personal data",
+  "Notification emails not sending",
+  "Search functionality returning stale results",
+  "File upload size limit too restrictive",
+  "User permissions not updating correctly",
+  "Dashboard chart data misaligned",
 ];
 
-for (let i = 1; i <= 100; i++) {
+for (let i = 1; i <= 150; i++) {
   const status = statuses[i % statuses.length];
   const category = categories[i % categories.length];
   const priority = priorities[i % priorities.length];
@@ -254,15 +150,15 @@ for (let i = 1; i <= 100; i++) {
   await prisma.ticket.create({
     data: {
       title: `${subject} #${i}`,
-      description: `Auto-generated description for ticket #${i}. This is a fake ticket for pagination testing.`,
+      description: `Auto-generated description for ticket #${i}. This is a fake ticket for pagination testing spanning a full month.`,
       status,
       category,
       priority,
       assignedTo,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * i), // i hours ago
+      createdAt: new Date(now - DAY * ((i * 30) / 150)), // spread evenly across 30 days
     }
   });
 }
 
-console.log(`Successfully seeded ${ticketsData.length + 100} diverse tickets (including 100 fake tickets).`);
+console.log(`Successfully seeded ${ticketsData.length + 150} tickets spanning 30 days.`);
 process.exit(0);

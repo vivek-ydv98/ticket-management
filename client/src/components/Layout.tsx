@@ -16,13 +16,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-brand/20 relative overflow-hidden flex flex-col">
-      {/* Ambient background decoration */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-40 dark:opacity-70 mask-radial-fade pointer-events-none z-0" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[450px] bg-glow-violet pointer-events-none z-0" />
-
-      {/* Premium Glassmorphic Header */}
-      <nav className="sticky top-0 z-50 flex items-center gap-4 px-6 py-4 border-b border-border/40 bg-background/60 backdrop-blur-md transition-all duration-300">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <nav className="sticky top-0 z-50 flex items-center gap-4 px-8 py-4 border-b border-border/50 bg-background/95 transition-all duration-300">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-brand/10 flex items-center justify-center border border-brand/20">
             <ShieldAlert className="h-4 w-4 text-brand" />
@@ -71,13 +66,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="ml-auto flex items-center gap-6">
-          {/* Subtle glowing status dot */}
-          <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-semibold text-emerald-400 tracking-wider uppercase">Online</span>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Online
           </div>
 
           <Button
@@ -91,8 +82,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
 
-          <span className="text-sm text-muted-foreground font-medium">
-            Welcome back, {session?.user?.name}
+          <span className="text-sm text-muted-foreground">
+            {session?.user?.name}
           </span>
 
           <Button

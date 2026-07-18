@@ -1,6 +1,9 @@
 import { simpleParser } from 'mailparser';
 import { prisma } from './db';
 import { TicketStatus, TicketCategory, TicketPriority } from '../generated/prisma/enums';
+import { ImapFlow } from 'imapflow';
+import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
 
 /**
  * Normalizes email content from various webhook formats to a standard email string
@@ -146,6 +149,13 @@ export async function createTicketFromEmail(emailContent: string) {
       throw new Error('Sender email address is required');
     }
 
+    // Validate sender restriction
+    const allowedSender = process.env.ALLOWED_SENDER_EMAIL || 'chandanm.enjay@gmail.com';
+    if (allowedSender !== '*' && fromAddress.toLowerCase() !== allowedSender.toLowerCase()) {
+      console.log(`[Email] Skipping ticket creation: sender '${fromAddress}' does not match allowed sender '${allowedSender}'.`);
+      return null;
+    }
+
     // Create a descriptive title from the email subject
     const title = `[Email] ${subject}`;
 
@@ -192,30 +202,77 @@ ${body}
 }
 
 /**
- * Sends an email notification (using SendGrid)
- * This would be used for sending replies or notifications
+ * Sends an email notification (using SMTP if configured, otherwise falls back to SendGrid or Mock)
  */
 export async function sendEmailNotification(to: string, subject: string, htmlContent: string) {
-  // Implementation would go here using @sendgrid/mail
-  // For now, we'll just log it since the focus is on receiving emails
-  console.log(`Would send email to: ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Content: ${htmlContent}`);
+  console.log(`[Email-Notification] Preparing to send to: ${to}, subject: ${subject}`);
 
-  // TODO: Implement actual SendGrid sending
-  /*
-  const sgMail = require('@sendgrid/mail');
-  sgMail.setApiKey(process.env.EMAIL_API_KEY);
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASSWORD;
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS || smtpUser || 'support@example.com';
 
-  const msg = {
-    to,
-    from: process.env.EMAIL_FROM_ADDRESS,
-    subject,
-    html: htmlContent,
-  };
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(process.env.SMTP_PORT || '465', 10),
+        secure: process.env.SMTP_SECURE !== 'false',
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
 
-  await sgMail.send(msg);
-  */
+      const mailOptions = {
+        from: fromAddress,
+        to,
+        subject,
+        html: htmlContent,
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`[SMTP] Email sent successfully: ${info.messageId}`);
+
+      // Sync this sent email to the IMAP 'Sent' folder asynchronously
+      try {
+        const composer = new MailComposer(mailOptions);
+        composer.compile().build(async (err: any, message: Buffer) => {
+          if (err) {
+            console.error('[SMTP-IMAP-Sync] Failed to compile raw MIME:', err);
+            return;
+          }
+          await syncSentEmailToIMAP(message);
+        });
+      } catch (syncErr) {
+        console.error('[SMTP-IMAP-Sync] Error starting Sent folder sync:', syncErr);
+      }
+
+      return info;
+    } catch (err) {
+      console.error('[SMTP] Failed to send email via SMTP:', err);
+      throw err;
+    }
+  } else if (process.env.EMAIL_API_KEY && process.env.EMAIL_API_KEY !== 'your_sendgrid_api_key_here') {
+    // SendGrid fallback
+    try {
+      const sgMail = require('@sendgrid/mail');
+      sgMail.setApiKey(process.env.EMAIL_API_KEY);
+      const msg = {
+        to,
+        from: fromAddress,
+        subject,
+        html: htmlContent,
+      };
+      await sgMail.send(msg);
+      console.log('[SendGrid] Email sent successfully');
+    } catch (err) {
+      console.error('[SendGrid] Failed to send email via SendGrid:', err);
+      throw err;
+    }
+  } else {
+    console.log(`[Email-Notification] [MOCK] Mail mock-sent to: ${to} | Subject: ${subject}`);
+  }
 }
 
 /**
@@ -241,16 +298,16 @@ export async function getCustomerFirstName(ticketId?: string | number, ticketDes
   if (ticketDescription) {
     const fromMatch = ticketDescription.match(/From:\s*([^\n\r]+)/i);
     if (fromMatch) {
-      const rawFrom = fromMatch[1].trim();
+      const rawFrom = fromMatch[1]!.trim();
       // Extract name before < if it exists
       const nameEmailMatch = rawFrom.match(/^([^<]+)\s*<[^>]+>/);
       if (nameEmailMatch) {
-        customerName = nameEmailMatch[1].trim();
+        customerName = nameEmailMatch[1]!.trim();
       } else {
         // If it's just an email, extract local part
         const emailMatch = rawFrom.match(/^([^@\s]+)@/);
         if (emailMatch) {
-          customerName = emailMatch[1].trim();
+          customerName = emailMatch[1]!.trim();
         }
       }
     }
@@ -261,7 +318,7 @@ export async function getCustomerFirstName(ticketId?: string | number, ticketDes
     try {
       const emailMatch = ticketDescription.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
       if (emailMatch) {
-        const email = emailMatch[1].trim();
+        const email = emailMatch[1]!.trim();
         const user = await prisma.user.findUnique({ where: { email } });
         if (user && user.name) {
           customerName = user.name;
@@ -359,5 +416,156 @@ export async function classifyEmailTicketAsync(ticketId: number, title: string, 
     });
   } catch (err) {
     console.error(`[classify-email] Failed to classify ticket #${ticketId}:`, err);
+  }
+}
+
+/**
+ * Synchronizes a sent email message to the IMAP Sent folder
+ */
+export async function syncSentEmailToIMAP(rawMime: Buffer) {
+  const host = process.env.IMAP_HOST;
+  const user = process.env.IMAP_USER;
+  const pass = process.env.IMAP_PASSWORD;
+  const sentFolder = process.env.SMTP_SENT_FOLDER || 'Sent';
+
+  if (!host || !user || !pass) {
+    console.log('[SMTP-IMAP-Sync] IMAP sync skipped: credentials/host not configured.');
+    return;
+  }
+
+  console.log(`[SMTP-IMAP-Sync] Connecting to IMAP server to append to folder "${sentFolder}"`);
+  const client = new ImapFlow({
+    host,
+    port: parseInt(process.env.IMAP_PORT || '993', 10),
+    secure: process.env.IMAP_SECURE !== 'false',
+    auth: {
+      user,
+      pass,
+    },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+    
+    // Append the message to the Sent mailbox
+    await client.append(sentFolder, rawMime, ['\\Seen']);
+    console.log(`[SMTP-IMAP-Sync] Appended sent email successfully to folder "${sentFolder}"`);
+    
+    await client.logout();
+  } catch (error) {
+    console.error(`[SMTP-IMAP-Sync] Failed to append sent email to folder "${sentFolder}":`, error);
+  }
+}
+
+let imapIntervalId: any = null;
+let isPolling = false;
+
+/**
+ * Starts the IMAP polling listener worker
+ */
+export function startIMAPListener() {
+  const host = process.env.IMAP_HOST;
+  const user = process.env.IMAP_USER;
+  const pass = process.env.IMAP_PASSWORD;
+
+  if (!host || !user || !pass) {
+    console.log('[IMAP] Listener skipped: credentials/host not fully configured in environment.');
+    return;
+  }
+
+  const pollInterval = parseInt(process.env.IMAP_POLL_INTERVAL_MS || '30000', 10);
+  console.log(`[IMAP] Starting polling worker (interval: ${pollInterval}ms)`);
+
+  // Poll immediately, then run at interval
+  pollEmails().catch(err => console.error('[IMAP] Initial poll error:', err));
+
+  imapIntervalId = setInterval(() => {
+    pollEmails().catch(err => console.error('[IMAP] Poller error:', err));
+  }, pollInterval);
+}
+
+/**
+ * Stops the IMAP polling listener worker
+ */
+export function stopIMAPListener() {
+  if (imapIntervalId) {
+    clearInterval(imapIntervalId);
+    imapIntervalId = null;
+    console.log('[IMAP] Polling worker stopped.');
+  }
+}
+
+/**
+ * Connects to IMAP, searches for unseen messages, parses them, creates tickets, and marks them read.
+ */
+async function pollEmails() {
+  if (isPolling) {
+    console.log('[IMAP] Fetch cycle already in progress, skipping...');
+    return;
+  }
+  isPolling = true;
+
+  const client = new ImapFlow({
+    host: process.env.IMAP_HOST || '',
+    port: parseInt(process.env.IMAP_PORT || '993', 10),
+    secure: process.env.IMAP_SECURE !== 'false',
+    auth: {
+      user: process.env.IMAP_USER || '',
+      pass: process.env.IMAP_PASSWORD || '',
+    },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+
+    try {
+      // Search for all unseen messages in INBOX
+      const messages = await client.search({ seen: false });
+      if (messages && messages.length > 0) {
+        console.log(`[IMAP] Found ${messages.length} unseen message(s) in INBOX`);
+        for (const uid of messages) {
+          // Fetch raw source
+          const messageData = await client.fetchOne(uid.toString(), { source: true });
+          if (messageData && messageData.source) {
+            const rawMime = messageData.source.toString();
+            
+            try {
+              // Create the ticket from raw MIME string
+              const ticket = await createTicketFromEmail(rawMime);
+              if (ticket) {
+                console.log(`[IMAP] Successfully created ticket #${ticket.id} from email`);
+                
+                // Dynamically import autoResolveTicketAsync to avoid circular dependency
+                const { autoResolveTicketAsync } = await import('./autoResolve');
+                
+                // Trigger background auto-resolve and classification
+                autoResolveTicketAsync(ticket.id, ticket.title, ticket.description ?? "")
+                  .catch(err => console.error(`[IMAP-background] Auto-resolve failed for ticket #${ticket.id}:`, err));
+                classifyEmailTicketAsync(ticket.id, ticket.title, ticket.description ?? "")
+                  .catch(err => console.error(`[IMAP-background] Classification failed for ticket #${ticket.id}:`, err));
+              } else {
+                console.log(`[IMAP] Email processed but ticket creation skipped (sender not allowed).`);
+              }
+            } catch (err) {
+              console.error(`[IMAP] Failed to create ticket from email UID ${uid}:`, err);
+            }
+
+            // Mark message as Seen so we don't process it again
+            await client.messageFlagsAdd(uid.toString(), ['\\Seen']);
+          }
+        }
+      }
+    } finally {
+      lock.release();
+    }
+
+    await client.logout();
+  } catch (error) {
+    console.error('[IMAP] Error connecting/processing emails:', error);
+  } finally {
+    isPolling = false;
   }
 }

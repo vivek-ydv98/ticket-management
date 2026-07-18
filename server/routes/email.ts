@@ -49,6 +49,12 @@ router.post(EMAIL_WEBHOOK_PATH, async (req: Request, res: Response) => {
     // Create a ticket from the email
     const ticket = await createTicketFromEmail(emailContent);
 
+    if (!ticket) {
+      return res.status(200).json({
+        message: "Email received but ticket creation skipped (sender not allowed)"
+      });
+    }
+
     // Return success response
     res.status(201).json({
       message: "Ticket created successfully from email",

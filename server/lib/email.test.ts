@@ -1,6 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { normalizeEmailContent, createTicketFromEmail } from './email';
+import { normalizeEmailContent, createTicketFromEmail, sendEmailNotification, startIMAPListener, stopIMAPListener } from './email';
 import { prisma } from './db';
+
+const { mockSendMail, mockConnect, mockLogout, mockAppend, mockGetMailboxLock, mockSearch, mockFetchOne, mockMessageFlagsAdd } = vi.hoisted(() => ({
+  mockSendMail: vi.fn().mockResolvedValue({ messageId: 'test-id-123' }),
+  mockConnect: vi.fn().mockResolvedValue(true),
+  mockLogout: vi.fn().mockResolvedValue(true),
+  mockAppend: vi.fn().mockResolvedValue(true),
+  mockGetMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }),
+  mockSearch: vi.fn().mockResolvedValue([{ toString: () => '1' }]),
+  mockFetchOne: vi.fn().mockResolvedValue({ source: Buffer.from('From: test@example.com\nTo: support@example.com\nSubject: Test\n\nHello') }),
+  mockMessageFlagsAdd: vi.fn().mockResolvedValue(true)
+}));
+
+// Mock nodemailer
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn().mockReturnValue({
+      sendMail: mockSendMail
+    })
+  }
+}));
+
+// Mock imapflow
+vi.mock('imapflow', () => ({
+  ImapFlow: vi.fn().mockImplementation(() => ({
+    connect: mockConnect,
+    logout: mockLogout,
+    append: mockAppend,
+    getMailboxLock: mockGetMailboxLock,
+    search: mockSearch,
+    fetchOne: mockFetchOne,
+    messageFlagsAdd: mockMessageFlagsAdd
+  }))
+}));
 
 // Mock prisma.ticket.create
 vi.mock('./db', () => ({
@@ -20,6 +53,7 @@ vi.mock('./db', () => ({
 describe('Email Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ALLOWED_SENDER_EMAIL = '*';
   });
 
   describe('normalizeEmailContent', () => {
@@ -92,6 +126,56 @@ To: support@example.com
 Test body`))
         .rejects
         .toThrow('Database error');
+    });
+
+    it('should return null if sender does not match ALLOWED_SENDER_EMAIL', async () => {
+      process.env.ALLOWED_SENDER_EMAIL = 'chandanm.enjay@gmail.com';
+      
+      const emailContent = `Subject: Test
+From: spammer@spammer.com
+To: support@example.com
+
+Test body`;
+
+      const result = await createTicketFromEmail(emailContent);
+      expect(result).toBeNull();
+      
+      // Reset
+      process.env.ALLOWED_SENDER_EMAIL = '*';
+    });
+  });
+
+  describe('sendEmailNotification', () => {
+    beforeEach(() => {
+      process.env.SMTP_HOST = 'smtp.example.com';
+      process.env.SMTP_USER = 'support@example.com';
+      process.env.SMTP_PASSWORD = 'app-password';
+      process.env.IMAP_HOST = 'imap.example.com';
+      process.env.IMAP_USER = 'support@example.com';
+      process.env.IMAP_PASSWORD = 'app-password';
+    });
+
+    afterEach(() => {
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASSWORD;
+      delete process.env.IMAP_HOST;
+      delete process.env.IMAP_USER;
+      delete process.env.IMAP_PASSWORD;
+    });
+
+    it('should send email using nodemailer when SMTP details are provided', async () => {
+      await sendEmailNotification('recipient@example.com', 'Test Subject', '<p>Hello</p>');
+      expect(mockSendMail).toHaveBeenCalled();
+    });
+  });
+
+  describe('IMAP Listener', () => {
+    it('should skip starting IMAP listener if credentials are not configured', () => {
+      const logSpy = vi.spyOn(console, 'log');
+      startIMAPListener();
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Listener skipped'));
+      logSpy.mockRestore();
     });
   });
 });

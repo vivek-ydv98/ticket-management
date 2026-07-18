@@ -274,12 +274,12 @@ router.get("/stats", requireAuth, async (req, res) => {
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = d.toISOString().split("T")[0]!;
       dailyCounts[dateStr] = 0;
     }
 
     ticketsLast30Days.forEach(ticket => {
-      const dateStr = new Date(ticket.createdAt).toISOString().split("T")[0];
+      const dateStr = new Date(ticket.createdAt).toISOString().split("T")[0]!;
       if (dailyCounts[dateStr] !== undefined) {
         dailyCounts[dateStr]++;
       }
@@ -498,6 +498,19 @@ router.post("/:id/replies", requireAuth, async (req, res) => {
         },
       },
     });
+
+    // If reply is created by an AGENT, and the ticket originated from an email, send the response email
+    if (senderType === "AGENT" && ticket.title.startsWith("[Email]")) {
+      const emailMatch = ticket.description?.match(/From:\s*(?:[^<\n\r]+<)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*>?/i);
+      if (emailMatch) {
+        const customerEmail = emailMatch[1]!.trim();
+        const emailSubject = `Re: ${ticket.title.replace("[Email] ", "")}`;
+        
+        const { sendEmailNotification } = require("../lib/email");
+        sendEmailNotification(customerEmail, emailSubject, body)
+          .catch((err: any) => console.error("[SMTP] Failed to send ticket reply email:", err));
+      }
+    }
 
     res.status(201).json(reply);
   } catch (error) {

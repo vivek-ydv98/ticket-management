@@ -9,6 +9,7 @@ import { prisma } from "./lib/db";
 import usersRouter from "./routes/users";
 import emailRouter from "./routes/email";
 import ticketsRouter from "./routes/tickets";
+import { startIMAPListener } from "./lib/email";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -117,6 +118,7 @@ app.listen(port, async () => {
   try {
     await prisma.$connect();
     console.log("Connected to PostgreSQL database");
+    startIMAPListener();
   } catch (error) {
     console.error("Database connection failed:", error);
   }
