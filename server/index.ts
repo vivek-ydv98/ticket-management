@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import path from "path";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-call/node";
@@ -104,14 +105,22 @@ if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development" ||
 const authHandler = toNodeHandler(auth.handler);
 app.use("/api/auth", authHandler);
 
-app.get("/", (req, res) => {
-  res.json({ message: "Hello World from Express with Bun!" });
-});
-
 app.use("/api/tickets", ticketsRouter);
 
 app.use("/api/users", usersRouter);
 app.use("/api/email", emailRouter);
+
+// Serve client static assets
+const clientDistPath = path.resolve(__dirname, "../client/dist");
+app.use(express.static(clientDistPath));
+
+// Wildcard SPA route
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistPath, "index.html"));
+});
 
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
