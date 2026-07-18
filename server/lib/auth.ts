@@ -84,7 +84,7 @@ export const auth = betterAuth({
   advanced: {
     defaultCookieAttributes: {
       sameSite: "lax" as const,
-      domain: "localhost",
+      domain: process.env.NODE_ENV === "production" ? undefined : "localhost",
     },
   },
   databaseHooks: {
