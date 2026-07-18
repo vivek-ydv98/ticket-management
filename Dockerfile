@@ -5,30 +5,36 @@ WORKDIR /app
 # Stage 1: Build client and generate prisma client
 FROM base AS builder
 
-# Copy package configurations
+# Copy configurations for workspaces
+COPY package.json bun.lock ./
 COPY core/package.json ./core/
 COPY client/package.json ./client/
 COPY server/package.json ./server/
 
-# Install client dependencies and build
-COPY client/ ./client/
+# Copy all source files first so they are present during compilation and local resolution
 COPY core/ ./core/
-WORKDIR /app/client
+COPY client/ ./client/
+COPY server/ ./server/
+
+# Install all workspace dependencies
 RUN bun install
+
+# Build client
+WORKDIR /app/client
 RUN bun run build
 
-# Install server dependencies and generate Prisma
-COPY server/ ./server/
+# Generate Prisma Client
 WORKDIR /app/server
-RUN bun install
 RUN bunx prisma generate
 
 # Stage 2: Production runner
 FROM base AS runner
-# Copy built files
-COPY core/ ./core
+# Copy built files and hoisted node_modules
+COPY --from=builder /app/package.json /app/bun.lock ./
+COPY --from=builder /app/core ./core
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/server ./server
+COPY --from=builder /app/node_modules ./node_modules
 
 # Expose port
 EXPOSE 3000
