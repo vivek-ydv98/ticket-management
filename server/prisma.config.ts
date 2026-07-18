@@ -3,6 +3,21 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+console.log("=== PRISMA CONFIG DIAGNOSTICS ===");
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("DATABASE_URL present:", !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  try {
+    const urlStr = process.env.DATABASE_URL;
+    // Replace passwords for safe logging
+    const safeUrl = urlStr.replace(/:[^:@]+@/, ':***@');
+    console.log("DATABASE_URL (Redacted):", safeUrl);
+  } catch (e) {
+    console.log("DATABASE_URL display failed");
+  }
+}
+console.log("================================");
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
