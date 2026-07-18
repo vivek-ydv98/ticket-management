@@ -5,7 +5,7 @@
     "dotenv": "^17.4.2"
   },
   "scripts": {
-    "build": "cd client && bun run build && cd ../server && bunx prisma generate",
+    "build": "cd client && bun install --production=false && bun run build && cd ../server && bun install --production=false && bunx prisma generate",
     "start": "cd server && bunx prisma db push && bun run index.ts",
     "test:e2e": "bun playwright test",
     "test:e2e:ui": "bun playwright test --ui",
