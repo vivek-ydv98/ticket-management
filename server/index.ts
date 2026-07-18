@@ -115,7 +115,7 @@ const clientDistPath = path.resolve(__dirname, "../client/dist");
 app.use(express.static(clientDistPath));
 
 // Wildcard SPA route
-app.get("*", (req, res, next) => {
+app.get("(.*)", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }
