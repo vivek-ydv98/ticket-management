@@ -779,5 +779,18 @@ function mockSummarizeTicket(title: string, description: string, replies: any[])
   return summary;
 }
 
+router.post("/danger-delete-all", async (req, res) => {
+  const secret = req.query.secret;
+  if (secret !== "railway-delete-12345") {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const deleteResult = await prisma.ticket.deleteMany({});
+    return res.json({ success: true, count: deleteResult.count });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 
