@@ -149,9 +149,9 @@ export async function createTicketFromEmail(emailContent: string) {
       throw new Error('Sender email address is required');
     }
 
-    // Validate sender restriction
-    const allowedSender = process.env.ALLOWED_SENDER_EMAIL || 'chandanm.enjay@gmail.com';
-    if (allowedSender !== '*' && fromAddress.toLowerCase() !== allowedSender.toLowerCase()) {
+    // Validate sender restriction (strictly restricted to chandanm.enjay@gmail.com)
+    const allowedSender = 'chandanm.enjay@gmail.com';
+    if (fromAddress.toLowerCase() !== allowedSender.toLowerCase()) {
       console.log(`[Email] Skipping ticket creation: sender '${fromAddress}' does not match allowed sender '${allowedSender}'.`);
       return null;
     }

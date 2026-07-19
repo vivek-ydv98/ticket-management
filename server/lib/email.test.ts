@@ -89,7 +89,7 @@ describe('Email Service', () => {
   describe('createTicketFromEmail', () => {
     it('should create a ticket from valid email content', async () => {
       const emailContent = `Subject: Test Issue
-From: user@example.com
+From: chandanm.enjay@gmail.com
 To: support@example.com
 
 Hello, I need help with something.`;
@@ -122,7 +122,7 @@ Hello, I need help with something.`;
       (prisma.ticket.create as any).mockRejectedValueOnce(new Error('Database error'));
 
       await expect(createTicketFromEmail(`Subject: Test
-From: user@example.com
+From: chandanm.enjay@gmail.com
 To: support@example.com
 
 Test body`))
@@ -130,9 +130,7 @@ Test body`))
         .toThrow('Database error');
     });
 
-    it('should return null if sender does not match ALLOWED_SENDER_EMAIL', async () => {
-      process.env.ALLOWED_SENDER_EMAIL = 'chandanm.enjay@gmail.com';
-      
+    it('should return null if sender is not chandanm.enjay@gmail.com', async () => {
       const emailContent = `Subject: Test
 From: spammer@spammer.com
 To: support@example.com
@@ -141,9 +139,6 @@ Test body`;
 
       const result = await createTicketFromEmail(emailContent);
       expect(result).toBeNull();
-      
-      // Reset
-      process.env.ALLOWED_SENDER_EMAIL = '*';
     });
   });
 
