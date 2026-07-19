@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import express from "express";
-import router from "./users";
-import { prisma } from "../lib/db";
 
 // Mock database
 vi.mock("../lib/db", () => ({
@@ -36,6 +34,9 @@ vi.mock("../lib/requireAdmin", () => ({
     next();
   },
 }));
+
+import router from "./users";
+import { prisma } from "../lib/db";
 
 describe("User Routes - Deletion Unassigns Tickets", () => {
   let app: express.Express;

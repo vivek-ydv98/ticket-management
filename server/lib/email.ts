@@ -207,6 +207,11 @@ ${body}
 export async function sendEmailNotification(to: string, subject: string, htmlContent: string) {
   console.log(`[Email-Notification] Preparing to send to: ${to}, subject: ${subject}`);
 
+  if (process.env.DISABLE_OUTBOUND_EMAIL === 'true') {
+    console.log(`[Email-Notification] [DISABLED] Email sending bypassed (DISABLE_OUTBOUND_EMAIL is true).`);
+    return;
+  }
+
   const smtpHost = process.env.SMTP_HOST;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASSWORD;

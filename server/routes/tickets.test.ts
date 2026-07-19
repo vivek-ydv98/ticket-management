@@ -7,9 +7,6 @@ if (!(vi as any).mocked) {
 }
 process.env.OPENAI_API_KEY = "mock";
 
-import router from "./tickets";
-import { prisma } from "../lib/db";
-
 // Mock database
 vi.mock("../lib/db", () => ({
   prisma: {
@@ -39,6 +36,9 @@ vi.mock("../lib/requireAuth", () => ({
     next();
   },
 }));
+
+import router from "./tickets";
+import { prisma } from "../lib/db";
 
 describe("Ticket Routes - Assignment Validation", () => {
   let app: express.Express;

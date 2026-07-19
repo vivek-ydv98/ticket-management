@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { normalizeEmailContent, createTicketFromEmail, sendEmailNotification, startIMAPListener, stopIMAPListener } from './email';
 import { prisma } from './db';
 
 const { mockSendMail, mockConnect, mockLogout, mockAppend, mockGetMailboxLock, mockSearch, mockFetchOne, mockMessageFlagsAdd } = vi.hoisted(() => ({
@@ -35,6 +34,8 @@ vi.mock('imapflow', () => ({
   }))
 }));
 
+import { normalizeEmailContent, createTicketFromEmail, sendEmailNotification, startIMAPListener, stopIMAPListener } from './email';
+
 // Mock prisma.ticket.create
 vi.mock('./db', () => ({
   prisma: {
@@ -54,6 +55,7 @@ describe('Email Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ALLOWED_SENDER_EMAIL = '*';
+    process.env.DISABLE_OUTBOUND_EMAIL = 'false';
   });
 
   describe('normalizeEmailContent', () => {
